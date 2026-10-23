@@ -11,7 +11,6 @@ export const registerSchema = Joi.object({
       'string.pattern.base': 'com_id must be like NAME-1234',
     }),
   password: Joi.string().min(6).max(128).required(),
-  preferred: Joi.array().items(Joi.string().valid('text', 'audio', 'scene')).min(1).default(['text']),
 });
 
 export const loginSchema = Joi.object({

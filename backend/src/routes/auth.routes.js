@@ -21,7 +21,7 @@ router.post('/register', authLimiter, async (req, res) => {
     return res.status(400).json({ success: false, error: error.message });
   }
 
-  const { full_name, com_id, password, preferred } = value;
+  const { full_name, com_id, password } = value;
   const pool = getPool();
   const conn = await pool.getConnection();
 
@@ -32,11 +32,10 @@ router.post('/register', authLimiter, async (req, res) => {
     }
 
     const password_hash = await hashPassword(password);
-    const prefStr = Array.isArray(preferred) ? preferred.join(',') : String(preferred);
 
     const [result] = await conn.execute(
-      'INSERT INTO users (full_name, com_id, password_hash, preferred_content) VALUES (?, ?, ?, ?)',
-      [full_name, com_id, password_hash, prefStr]
+      'INSERT INTO users (full_name, com_id, password_hash) VALUES (?, ?, ?)',
+      [full_name, com_id, password_hash]
     );
 
     const userId = result.insertId;
@@ -46,7 +45,6 @@ router.post('/register', authLimiter, async (req, res) => {
         id: userId,
         full_name,
         com_id,
-        preferred: preferred || prefStr.split(','),
       },
     });
   } catch (err) {
@@ -67,7 +65,7 @@ router.post('/login', authLimiter, async (req, res) => {
   const pool = getPool();
   try {
     const [rows] = await pool.execute(
-      'SELECT id, full_name, com_id, password_hash, preferred_content FROM users WHERE com_id = ?',
+      'SELECT id, full_name, com_id, password_hash FROM users WHERE com_id = ?',
       [com_id]
     );
 
@@ -89,7 +87,6 @@ router.post('/login', authLimiter, async (req, res) => {
         id: user.id,
         full_name: user.full_name,
         com_id: user.com_id,
-        preferred: user.preferred_content ? user.preferred_content.split(',') : ['text'],
       },
     });
   } catch (err) {
@@ -102,12 +99,12 @@ router.post('/login', authLimiter, async (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await getPool().execute(
-      'SELECT id, full_name, com_id, preferred_content FROM users WHERE id = ?',
+      'SELECT id, full_name, com_id FROM users WHERE id = ?',
       [req.user.id]
     );
     if (!rows.length) return res.status(401).json({ success: false, error: 'invalid token' });
     const u = rows[0];
-    res.json({ success: true, user: { id: u.id, full_name: u.full_name, com_id: u.com_id, preferred: u.preferred_content ? u.preferred_content.split(',') : ['text'] } });
+    res.json({ success: true, user: { id: u.id, full_name: u.full_name, com_id: u.com_id } });
   } catch (err) {
     res.status(500).json({ success: false, error: 'server error' });
   }

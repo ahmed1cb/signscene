@@ -1,7 +1,5 @@
 from core.asl.templates import GestureTemplate, TemplateStore
 from PySide6.QtWidgets import (
-    QDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,7 +32,6 @@ class TeachDialog(QWidget):
         title.setObjectName("Title")
         close = QPushButton("Done")
         close.setObjectName("GhostButton")
-        close.setCursor(self.cursor())
         close.clicked.connect(self._on_close)
         header.addWidget(title)
         header.addStretch(1)
@@ -54,6 +51,7 @@ class TeachDialog(QWidget):
         self.custom_edit.setMinimumHeight(40)
         add_button = QPushButton("Add")
         add_button.setFixedWidth(90)
+        add_button.setMinimumHeight(36)
         add_button.clicked.connect(self._add_custom)
         add_row.addWidget(self.custom_edit, 1)
         add_row.addWidget(add_button)
@@ -62,7 +60,6 @@ class TeachDialog(QWidget):
         self.status.setObjectName("Hint")
 
         self._list = QWidget()
-        self._list.setStyleSheet("background: transparent;")
         self._list_layout = QVBoxLayout(self._list)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
         self._list_layout.setSpacing(8)
@@ -110,11 +107,13 @@ class TeachDialog(QWidget):
 
         record = QPushButton("Record")
         record.setFixedWidth(100)
+        record.setMinimumHeight(32)
         record.clicked.connect(lambda _=False, w=word: self._record(word))
 
         clear = QPushButton("Clear")
         clear.setObjectName("GhostButton")
         clear.setFixedWidth(80)
+        clear.setMinimumHeight(32)
         clear.clicked.connect(lambda _, w=word: self._clear(word))
 
         layout.addWidget(name, 1)
@@ -145,11 +144,7 @@ class TeachDialog(QWidget):
     # ---- external updates ----
     def refresh(self) -> None:
         for word, label in self._rows.items():
-            label.setText(self._count_of(word))
-
-    def _count_of(self, word: str) -> str:
-        count = self._templates.sample_count(word)
-        return f"{count} sample{'s' if count != 1 else ''}"
+            label.setText(self._count_text(word))
 
     def on_recorded(self, word: str, total: int) -> None:
         label = self._rows.get(word)

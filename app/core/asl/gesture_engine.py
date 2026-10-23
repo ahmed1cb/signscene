@@ -51,13 +51,13 @@ class GestureEngine:
         return self._record_word is not None
 
     # ---------- main ----------
-    def update(self, ts_ms: int, hands, frame_w: int, frame_h: int) -> GestureResult:
+    def update(self, ts_ms: int, hands) -> GestureResult:
         result = GestureResult()
         self._frame_count += 1
 
         frame = SignFrame(t_ms=ts_ms)
         for landmarks, handedness in hands:
-            hand_frame = self._build_hand_frame(landmarks, handedness, frame_w, frame_h)
+            hand_frame = self._build_hand_frame(landmarks, handedness)
             if hand_frame is not None:
                 frame.hands[hand_frame.handedness] = hand_frame
 
@@ -99,7 +99,7 @@ class GestureEngine:
             self.templates.add_sample(word, self._record_frames, primary=self._record_label)
         self._record_frames = []
 
-    def _build_hand_frame(self, landmarks, handedness: str, frame_w: int, frame_h: int) -> HandFrame | None:
+    def _build_hand_frame(self, landmarks, handedness: str) -> HandFrame | None:
         if not landmarks:
             return None
         extractor = self._extractors.setdefault(handedness, FeatureExtractor())

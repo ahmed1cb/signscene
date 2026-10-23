@@ -1,10 +1,17 @@
-import express from 'express';
+import http from 'node:http';
+
 import cors from 'cors';
-import helmet from 'helmet';
 import dotenv from 'dotenv';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import { WebSocketServer } from 'ws';
+
 import authRoutes from './routes/auth.routes.js';
+import sceneRoutes from './routes/scene.routes.js';
 import { pingDb } from './config/db.js';
+import { RealtimeHub } from './realtime/hub.js';
+import * as realtimeRepository from './realtime/repository.js';
 
 dotenv.config();
 
@@ -19,7 +26,6 @@ app.use(
   })
 );
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -28,9 +34,10 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(globalLimiter);
-// made this to check if the servers works
 
+// made this to check if the servers works
 app.get('/healthz', (req, res) => res.json({ ok: true }));
+
 
 // made this to check if the database is connected
 app.get('/db/health', async (req, res) => {
@@ -43,15 +50,40 @@ app.get('/db/health', async (req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.use('/scene', sceneRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'not found' }));
 
+// Public Errors Handler
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'server error' });
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
+const server = http.createServer(app);
+const wss = new WebSocketServer({
+  server,
+  path: process.env.WS_PATH || '/ws',
+  maxPayload: parseInt(process.env.WS_MAX_PAYLOAD_BYTES || '3145728', 10),
+});
+
+const hub = new RealtimeHub({
+  wss,
+  repo: realtimeRepository,
+  ringTimeoutMs: parseInt(process.env.CALL_RING_TIMEOUT_MS || '45000', 10),
+});
+
+server.listen(PORT, () => {
   console.log(`SignScene backend listening on :${PORT}`);
 });
+
+function shutdown() {
+  hub.close();
+  wss.close();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 3000).unref();
+}
+
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);

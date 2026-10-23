@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "negative_prompt": "text, watermark, logo, blurry, low quality, deformed hands, extra fingers, extra limbs, bad anatomy, jpeg artifacts, oversharpen, nsfw",
+  "defaults": {
+    "width": 512,
+    "height": 512,
+    "num_inference_steps": 4,
+    "guidance_scale": 1.0
+  },
+  "mappings": {
+    "hello,hi": "A clean, minimal illustration of two people waving hello to each other. Soft natural lighting, neutral background, photorealistic illustration.",
+    "yes,yeah": "A clean, minimal illustration of a person nodding yes. Soft natural lighting, neutral background, photorealistic illustration.",
+    "no,nah": "A clean, minimal illustration of a person shaking their head no. Soft natural lighting, neutral background, photorealistic illustration.",
+    "help": "A clean, minimal illustration of someone asking for help, reaching out with concern. Soft natural lighting, neutral background, photorealistic illustration.",
+    "thanks,thank you": "A clean, minimal illustration of a person saying thank you with a grateful gesture. Soft natural lighting, neutral background, photorealistic illustration.",
+    "please": "A clean, minimal illustration of a person politely asking with a gentle gesture. Soft natural lighting, neutral background, photorealistic illustration.",
+    "water": "A clean, minimal illustration of a glass of water being offered to someone. Soft natural lighting, neutral background, photorealistic illustration.",
+    "emergency": "A clean, minimal illustration of people responding to an emergency situation with urgency. Soft natural lighting, neutral background, photorealistic illustration.",
+    "family": "A clean, minimal illustration of a family together, warm and friendly. Soft natural lighting, neutral background, photorealistic illustration.",
+    "love": "A clean, minimal illustration showing love and care between people. Soft natural lighting, neutral background, photorealistic illustration."
+  },
+  "template": "A clean, minimal illustration of \"{sentence}\". Clear subject, soft natural lighting, neutral background, photorealistic illustration, no text."
+}

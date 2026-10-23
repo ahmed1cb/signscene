@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths
@@ -32,13 +31,3 @@ def load() -> dict:
     merged = dict(DEFAULTS)
     merged.update({k: data[k] for k in DEFAULTS if k in data})
     return merged
-
-
-def save(settings: dict) -> None:
-    path = _settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({k: settings.get(k, DEFAULTS[k]) for k in DEFAULTS}))
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass

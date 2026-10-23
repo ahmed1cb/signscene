@@ -3,7 +3,6 @@ import re
 from core import api_client
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -14,7 +13,6 @@ from PySide6.QtWidgets import (
 )
 
 from ui.screens.login_screen import _PasswordLineEdit
-from ui.widgets.header import Header
 
 COM_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,10}-\d{4}$")
 
@@ -68,18 +66,6 @@ class RegisterScreen(QWidget):
 
         self.confirm = _PasswordLineEdit("Confirm password")
 
-        content_label = QLabel("Content you want to receive")
-        content_label.setObjectName("Hint")
-
-        content_row = QHBoxLayout()
-        self.check_text = QCheckBox("Text")
-        self.check_audio = QCheckBox("Audio")
-        self.check_scene = QCheckBox("Scene")
-        for check in (self.check_text, self.check_audio, self.check_scene):
-            check.setChecked(True)
-            content_row.addWidget(check)
-        content_row.addStretch(1)
-
         self.error_label = QLabel("")
         self.error_label.setObjectName("ErrorLabel")
         self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -111,13 +97,10 @@ class RegisterScreen(QWidget):
         card_layout.addWidget(self.com_id_hint)
         card_layout.addWidget(self.password)
         card_layout.addWidget(self.confirm)
-        card_layout.addWidget(content_label)
-        card_layout.addLayout(content_row)
         card_layout.addWidget(self.error_label)
         card_layout.addWidget(self.register_button)
         card_layout.addLayout(back_row)
 
-        root.addWidget(Header())
         root.addStretch(1)
         root.addWidget(card, 0, Qt.AlignmentFlag.AlignCenter)
         root.addStretch(1)
@@ -169,12 +152,6 @@ class RegisterScreen(QWidget):
             return False
         if self.password.text() != self.confirm.text():
             return False
-        if not (
-            self.check_text.isChecked()
-            or self.check_audio.isChecked()
-            or self.check_scene.isChecked()
-        ):
-            return False
         return True
 
     def _revalidate(self) -> None:
@@ -186,22 +163,13 @@ class RegisterScreen(QWidget):
             self._show_error("Please fix the highlighted fields.")
             return
 
-        preferred = []
-        if self.check_text.isChecked():
-            preferred.append("text")
-        if self.check_audio.isChecked():
-            preferred.append("audio")
-        if self.check_scene.isChecked():
-            preferred.append("scene")
-
         try:
             user = api_client.register(
                 full_name=self.name_edit.text().strip(),
                 com_id=self.com_id_edit.text().strip(),
                 password=self.password.text(),
-                preferred=preferred,
             )
-        except api_client.AuthError as exc:
+        except api_client.AuthError:
             self._show_error(
                 "Something went wrong, Please check the connection and try again"
             )
@@ -222,8 +190,6 @@ class RegisterScreen(QWidget):
         self.com_id_edit.clear()
         self.password.edit.clear()
         self.confirm.edit.clear()
-        for check in (self.check_text, self.check_audio, self.check_scene):
-            check.setChecked(True)
         self._set_com_id_state(None, "Letters, then a dash and 4 digits.")
         self._hide_error()
         self._revalidate()

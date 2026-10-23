@@ -22,10 +22,6 @@ QWidget {{
     font-size: 14px;
 }}
 
-QMainWindow {{
-    background-color: {BG};
-}}
-
 /* ---------- Cards / panels ---------- */
 #Card {{
     background-color: {PANEL};
@@ -33,17 +29,61 @@ QMainWindow {{
     border-radius: 12px;
 }}
 
-/* ---------- Top bar ---------- */
-#TopBar {{
-    background-color: {PANEL};
-    border-bottom: 1px solid {BORDER};
-}}
+    /* ---------- Top bar / window titlebar ---------- */
+    #TitleBar {{
+        background-color: {PANEL};
+        border-bottom: 1px solid {BORDER};
+    }}
 
-#Brand {{
-    font-size: 18px;
-    font-weight: 700;
-    color: {TEXT};
-}}
+    #TitleBar QLabel {{
+        background: transparent;
+    }}
+
+    #Brand {{
+        font-size: 15px;
+        font-weight: 700;
+        color: {TEXT};
+    }}
+
+    #WindowButton {{
+        background-color: transparent;
+        border: none;
+        border-radius: 6px;
+        color: {TEXT_MUTED};
+        font-size: 15px;
+        font-weight: 600;
+        padding: 0;
+    }}
+
+    #WindowButton:hover {{
+        background-color: {PANEL_ALT};
+        color: {TEXT};
+    }}
+
+    #WindowButton:pressed {{
+        background-color: {BORDER};
+        color: {TEXT};
+    }}
+
+    #WindowCloseButton {{
+        background-color: transparent;
+        border: none;
+        border-radius: 6px;
+        color: {TEXT_MUTED};
+        font-size: 15px;
+        font-weight: 600;
+        padding: 0;
+    }}
+
+    #WindowCloseButton:hover {{
+        background-color: {ERROR};
+        color: {TEXT};
+    }}
+
+    #WindowCloseButton:pressed {{
+        background-color: #E25555;
+        color: {TEXT};
+    }}
 
 /* ---------- Headings ---------- */
 #Title {{
@@ -164,9 +204,68 @@ QLabel {{
     padding: 2px;
 }}
 
-QFrame#Card[recognized="true"] {{
-    border: 2px solid {ACCENT};
+    /* ---------- Scenes / messages split ---------- */
+    #SceneSplitter,
+    #MainMessagesSplitter {{
+        background: transparent;
+    }}
+
+    #SceneSplitter::handle,
+    #MainMessagesSplitter::handle {{
+        background: transparent;
+    }}
+
+    #MainMessagesSplitter::handle:vertical {{
+        height: 8px;
+    }}
+
+    #MainMessagesSplitter::handle:vertical:hover,
+    #MainMessagesSplitter::handle:vertical:pressed {{
+        background-color: {BORDER};
+        border-radius: 3px;
+    }}
+
+    #SceneSplitter::handle:horizontal {{
+        width: 8px;
+    }}
+
+    #SceneSplitter::handle:horizontal:hover,
+    #SceneSplitter::handle:horizontal:pressed {{
+        background-color: {BORDER};
+        border-radius: 3px;
+    }}
+
+#ScenePreview {{
+    background-color: {PANEL_ALT};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    padding: 4px;
+}}
+
+/* ---------- Incoming call / danger actions ---------- */
+#IncomingCallBar {{
     background-color: {ACCENT_SOFT};
+    border: 1px solid {ACCENT};
+    border-radius: 10px;
+}}
+
+#IncomingCallLabel {{
+    color: {TEXT};
+    font-size: 13px;
+    font-weight: 600;
+}}
+
+#DangerButton {{
+    background-color: {ERROR};
+    color: {TEXT};
+}}
+
+#DangerButton:hover {{
+    background-color: #FF8585;
+}}
+
+#DangerButton:pressed {{
+    background-color: #E25555;
 }}
 
 /* ---------- Message bubbles ---------- */
@@ -246,62 +345,4 @@ QCheckBox::indicator:checked {{
     background: transparent;
 }}
 
-/* ---------- Voice / audio controls ---------- */
-QComboBox {{
-    background-color: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    border-radius: 8px;
-    padding: 6px 10px;
-    color: {TEXT};
-}}
-
-QComboBox:hover {{
-    border: 1px solid {ACCENT};
-}}
-
-QComboBox::drop-down {{
-    border: none;
-    width: 22px;
-}}
-
-QComboBox::down-arrow {{
-    image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid {TEXT_MUTED};
-    margin-right: 8px;
-}}
-
-QComboBox QAbstractItemView {{
-    background-color: {PANEL_ALT};
-    border: 1px solid {BORDER};
-    color: {TEXT};
-    selection-background-color: {ACCENT};
-    selection-color: {ACCENT_TEXT};
-    outline: none;
-}}
-
-QSlider::groove:horizontal {{
-    height: 4px;
-    background: {BORDER};
-    border-radius: 2px;
-}}
-
-QSlider::sub-page:horizontal {{
-    background: {ACCENT};
-    border-radius: 2px;
-}}
-
-QSlider::handle:horizontal {{
-    background: {TEXT};
-    border: 1px solid {ACCENT};
-    width: 12px;
-    height: 12px;
-    margin: -5px 0;
-    border-radius: 7px;
-}}
-
-QSlider::handle:horizontal:hover {{
-    background: {ACCENT};
-}}
 """

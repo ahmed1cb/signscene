@@ -81,36 +81,6 @@ def apply_saved() -> None:
         _current["voice_id"] = voice_id
 
 
-def _persist() -> None:
-    settings.save(_current)
-
-
-def set_voice(voice_id: str, voice_name: str | None = None) -> None:
-    _set("voice", voice_id)
-    _current["voice_id"] = str(voice_id)
-    if voice_name is None:
-        voice_name = next((n for i, n in list_voices() if i == str(voice_id)), None)
-    if voice_name is not None:
-        _current["voice_name"] = voice_name
-    _persist()
-
-
-def set_rate(rate: int) -> None:
-    _current["rate"] = int(rate)
-    _set("rate", int(rate))
-    _persist()
-
-
-def set_volume(volume: float) -> None:
-    _current["volume"] = float(volume)
-    _set("volume", float(volume))
-    _persist()
-
-
-def current() -> dict:
-    return dict(_current)
-
-
 class Speaker:
     @staticmethod
     def say(msg: Message):

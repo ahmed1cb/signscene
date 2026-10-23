@@ -112,7 +112,6 @@ class CameraWorker(QThread):
                     mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), ts_ms
                 )
 
-                height, width = rgb.shape[:2]
                 hands = []
                 if result.hand_landmarks:
                     for index, landmarks in enumerate(result.hand_landmarks):
@@ -124,7 +123,7 @@ class CameraWorker(QThread):
 
                 self._apply_requests(ts_ms)
 
-                gesture = self._engine.update(ts_ms, hands, width, height)
+                gesture = self._engine.update(ts_ms, hands)
 
                 if gesture.recorded_word:
                     total = self._templates.sample_count(gesture.recorded_word)

@@ -10,9 +10,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.widgets.header import Header
-
-
 class _PasswordLineEdit(QWidget):
     def __init__(self, placeholder: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -122,7 +119,6 @@ class LoginScreen(QWidget):
         card_layout.addWidget(self.login_button)
         card_layout.addLayout(register_row)
 
-        root.addWidget(Header())
         root.addStretch(1)
         root.addWidget(card, 0, Qt.AlignmentFlag.AlignCenter)
         root.addStretch(1)
@@ -138,8 +134,7 @@ class LoginScreen(QWidget):
 
         try:
             user = api_client.login(com_id, password)
-        except api_client.AuthError as exc:
-            print(str(exec))
+        except api_client.AuthError:
             self._show_error(
                 "Something Went Wrong, Please Check the connection and try again"
             )

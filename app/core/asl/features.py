@@ -9,10 +9,10 @@ from enum import Enum
 # MediaPipe hand landmark indices
 WRIST = 0
 THUMB_CMC, THUMB_MCP, THUMB_TIP = 1, 2, 4
-INDEX_MCP, INDEX_PIP, INDEX_DIP, INDEX_TIP = 5, 6, 7, 8
-MIDDLE_MCP, MIDDLE_PIP, MIDDLE_DIP, MIDDLE_TIP = 9, 10, 11, 12
-RING_MCP, RING_PIP, RING_DIP, RING_TIP = 13, 14, 15, 16
-PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP = 17, 18, 19, 20
+INDEX_MCP, INDEX_PIP, INDEX_TIP = 5, 6, 8
+MIDDLE_MCP, MIDDLE_PIP, MIDDLE_TIP = 9, 10, 12
+RING_MCP, RING_PIP, RING_TIP = 13, 14, 16
+PINKY_MCP, PINKY_PIP, PINKY_TIP = 17, 18, 20
 
 
 class FingerState(Enum):
@@ -62,7 +62,7 @@ def _point(lm, idx):
     return (p.x, p.y, p.z)
 
 
-def _finger_state(landmarks, mcp: int, pip: int, dip: int, tip: int) -> FingerState:
+def _finger_state(landmarks, mcp: int, pip: int, tip: int) -> FingerState:
     mcp_p, pip_p, tip_p = _point(landmarks, mcp), _point(landmarks, pip), _point(landmarks, tip)
     bend = _angle_between(_sub(mcp_p, pip_p), _sub(tip_p, pip_p))
     if bend >= 150:
@@ -76,10 +76,10 @@ class FeatureExtractor:
     """Extracts hand-shape features from a frame's landmarks."""
 
     def extract(self, landmarks) -> HandFeatures:
-        index = _finger_state(landmarks, INDEX_MCP, INDEX_PIP, INDEX_DIP, INDEX_TIP)
-        middle = _finger_state(landmarks, MIDDLE_MCP, MIDDLE_PIP, MIDDLE_DIP, MIDDLE_TIP)
-        ring = _finger_state(landmarks, RING_MCP, RING_PIP, RING_DIP, RING_TIP)
-        pinky = _finger_state(landmarks, PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP)
+        index = _finger_state(landmarks, INDEX_MCP, INDEX_PIP, INDEX_TIP)
+        middle = _finger_state(landmarks, MIDDLE_MCP, MIDDLE_PIP, MIDDLE_TIP)
+        ring = _finger_state(landmarks, RING_MCP, RING_PIP, RING_TIP)
+        pinky = _finger_state(landmarks, PINKY_MCP, PINKY_PIP, PINKY_TIP)
 
         thumb_a = _angle_between(
             _sub(_point(landmarks, THUMB_MCP), _point(landmarks, THUMB_CMC)),

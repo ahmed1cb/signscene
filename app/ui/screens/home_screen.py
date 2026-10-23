@@ -1,14 +1,15 @@
 import re
-from pathlib import Path
 
 import numpy as np
 from core import speaker
 from core.asl.templates import TemplateStore
 from core.camera import CameraWorker
 from core.message import Message
+from core.realtime import RealtimeClient
+from core.scene import SceneWorker
 from core.speaker import Speaker
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QIcon, QImage, QPixmap, QResizeEvent
+from PySide6.QtGui import QImage, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -21,10 +22,9 @@ from PySide6.QtWidgets import (
 )
 
 from ui.screens.teach_dialog import TeachDialog
-from ui.widgets.message_panel import MessagePanel
+from ui.widgets.message_panel import MessagesArea
 
 COM_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,10}-\d{4}$")
-ICON_PATH = Path(__file__).resolve().parents[2] / "assets/images/icon.svg"
 
 
 class VideoLabel(QLabel):
@@ -45,6 +45,11 @@ class HomeScreen(QWidget):
         self._last_frame: np.ndarray | None = None
         self._templates = TemplateStore()
         self._recording_word: str | None = None
+        self._realtime: RealtimeClient | None = None
+        self._call_state = "idle"  # idle | outgoing | incoming | active
+        self._call_id: str | None = None
+        self._last_sentence: str = ""
+        self._scene_worker: SceneWorker | None = None
         speaker.apply_saved()
         self._build_ui()
 
@@ -55,24 +60,26 @@ class HomeScreen(QWidget):
 
         root.addLayout(self._build_top_bar())
         root.addLayout(self._build_call_bar())
+        root.addWidget(self._build_incoming_bar())
         root.addLayout(self._build_main_area(), stretch=1)
 
     # ---------- top bar ----------
     def _build_top_bar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
 
-        title = QLabel("SignScene")
-        title.setObjectName("Title")
-
         self.status_dot = QLabel("●")
         self.status_dot.setObjectName("StatusDot")
         self.own_id = QLabel("")
         self.own_id.setObjectName("Hint")
 
+        self.name = QLabel("")
+        self.name.setObjectName("Hint")
+
         identity = QHBoxLayout()
         identity.setSpacing(6)
         identity.addWidget(self.status_dot)
         identity.addWidget(self.own_id)
+        identity.addWidget(self.name)
 
         self.teach_button = QPushButton("Teach signs")
         self.teach_button.setObjectName("GhostButton")
@@ -86,19 +93,10 @@ class HomeScreen(QWidget):
         sign_out.setFixedWidth(110)
         sign_out.clicked.connect(self._on_sign_out)
 
-        logo = QLabel()
-        logo.setPixmap(QIcon(str(ICON_PATH)).pixmap(30, 30))
-        logo.setFixedSize(30, 30)
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        bar.addWidget(logo)
-        bar.addWidget(title)
+        bar.addLayout(identity)
         bar.addStretch(1)
-        bar.addSpacing(8)
         bar.addWidget(self.teach_button)
         bar.addSpacing(8)
-        bar.addLayout(identity)
-        bar.addSpacing(12)
         bar.addWidget(sign_out)
         return bar
 
@@ -128,6 +126,36 @@ class HomeScreen(QWidget):
         bar.addWidget(self.call_button)
         bar.addWidget(self.call_status)
         return bar
+
+    def _build_incoming_bar(self) -> QFrame:
+        self.incoming_bar = QFrame()
+        self.incoming_bar.setObjectName("IncomingCallBar")
+
+        layout = QHBoxLayout(self.incoming_bar)
+        layout.setContentsMargins(14, 8, 14, 8)
+        layout.setSpacing(10)
+
+        self.incoming_label = QLabel("")
+        self.incoming_label.setObjectName("IncomingCallLabel")
+        self.incoming_label.setWordWrap(True)
+
+        accept = QPushButton("Accept")
+        accept.setCursor(Qt.CursorShape.PointingHandCursor)
+        accept.setFixedWidth(100)
+        accept.clicked.connect(self._accept_incoming)
+
+        reject = QPushButton("Reject")
+        reject.setObjectName("DangerButton")
+        reject.setCursor(Qt.CursorShape.PointingHandCursor)
+        reject.setFixedWidth(100)
+        reject.clicked.connect(self._reject_incoming)
+
+        layout.addWidget(self.incoming_label, 1)
+        layout.addWidget(accept)
+        layout.addWidget(reject)
+
+        self.incoming_bar.hide()
+        return self.incoming_bar
 
     # ---------- camera + side panels ----------
     def _build_main_area(self) -> QHBoxLayout:
@@ -182,10 +210,18 @@ class HomeScreen(QWidget):
         self.clear_button.setEnabled(False)
         self.clear_button.clicked.connect(self._clear_composing)
 
+        self.gen_scene_btn = QPushButton("Generate Scene")
+        self.gen_scene_btn.setObjectName("GhostButton")
+        self.gen_scene_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.gen_scene_btn.setFixedWidth(150)
+        self.gen_scene_btn.setEnabled(False)
+        self.gen_scene_btn.clicked.connect(self._generate_scene)
+
         button_row = QHBoxLayout()
         button_row.addStretch(1)
         button_row.addWidget(self.camera_button)
         button_row.addWidget(self.clear_button)
+        button_row.addWidget(self.gen_scene_btn)
         button_row.addStretch(1)
 
         camera_layout.addWidget(camera_title, alignment=Qt.AlignmentFlag.AlignLeft)
@@ -196,7 +232,7 @@ class HomeScreen(QWidget):
         camera_layout.addLayout(button_row)
 
         # side panels: messages (default) or the teach panel
-        self.messages_area = MessagePanel("Messages", "The Chat Messages")
+        self.messages_area = MessagesArea()
 
         messages_page = QWidget()
         messages_layout = QVBoxLayout(messages_page)
@@ -253,16 +289,219 @@ class HomeScreen(QWidget):
             self.peer_edit.blockSignals(False)
 
         valid = bool(COM_ID_PATTERN.match(self.peer_edit.text().strip()))
-        self.call_button.setEnabled(valid)
 
         self.peer_edit.setProperty("invalid", bool(upper) and not valid)
         self.peer_edit.setProperty("valid", valid)
         self.peer_edit.style().unpolish(self.peer_edit)
         self.peer_edit.style().polish(self.peer_edit)
+        self._update_call_button()
+
+    def _update_call_button(self) -> None:
+        valid = bool(COM_ID_PATTERN.match(self.peer_edit.text().strip()))
+        ready = self._realtime is not None and self._realtime.is_ready
+        if self._call_state in ("active", "outgoing"):
+            self.call_button.setEnabled(True)
+            return
+        self.call_button.setEnabled(valid and ready and self._call_state == "idle")
 
     def _try_call(self) -> None:
+        if self._call_state == "active" and self._call_id:
+            if self._realtime and self._realtime.end_call(self._call_id):
+                self.call_status.setText("Ending call…")
+            return
+
+        if self._call_state == "outgoing" and self._call_id:
+            if self._realtime and self._realtime.end_call(self._call_id):
+                self.call_status.setText("Cancelling call…")
+            return
+
         peer = self.peer_edit.text().strip()
-        self.call_status.setText(f"Call request to {peer} — not wired yet")
+        if not peer:
+            return
+        if self._realtime is None or not self._realtime.is_ready:
+            self.call_status.setText("Realtime is not connected yet")
+            return
+        if peer == self.own_id.text():
+            self.call_status.setText("You cannot call yourself")
+            return
+
+        if self._realtime.start_call(peer):
+            self._call_state = "outgoing"
+            self._call_id = None
+            self.call_status.setText(f"Calling {peer}…")
+            self._update_call_button()
+        else:
+            self.call_status.setText("Realtime is not connected yet")
+
+    # ---------- realtime ----------
+    def start_realtime(self, token: str) -> None:
+        if not token:
+            return
+
+        if self._realtime is not None:
+            self._realtime.close()
+            self._realtime.deleteLater()
+
+        self._realtime = RealtimeClient(self)
+        self._realtime.ready.connect(self._on_realtime_ready)
+        self._realtime.ringing.connect(self._on_call_ringing)
+        self._realtime.incoming.connect(self._on_call_incoming)
+        self._realtime.accepted.connect(self._on_call_accepted)
+        self._realtime.rejected.connect(self._on_call_rejected)
+        self._realtime.ended.connect(self._on_call_ended)
+        self._realtime.content.connect(self._on_realtime_content)
+        self._realtime.error.connect(self._on_realtime_error)
+        self._realtime.connection_changed.connect(self._on_realtime_connection)
+        self._realtime.connect(token)
+        self.call_status.setText("Connecting to realtime…")
+
+    def shutdown_realtime(self) -> None:
+        if self._realtime is not None:
+            self._realtime.close()
+            self._realtime.deleteLater()
+            self._realtime = None
+        self._reset_call_state()
+        self.call_status.setText("")
+
+    def _on_realtime_ready(self, _payload: dict) -> None:
+        if self._call_state == "idle":
+            self.call_status.setText("Realtime connected")
+        self._update_call_button()
+
+    def _on_realtime_connection(self, connected: bool) -> None:
+        if not connected and self._call_state in ("active", "outgoing", "incoming"):
+            self._reset_call_state("Realtime disconnected")
+        elif not connected:
+            self.call_status.setText("Realtime offline — retrying…")
+        self._update_call_button()
+
+    def _on_realtime_error(self, code: str, message: str) -> None:
+        labels = {
+            "target_not_found": "No user found with that com_id",
+            "user_offline": "That user is offline",
+            "user_busy": "That user is busy",
+            "cannot_call_self": "You cannot call yourself",
+            "call_not_found": "Call is no longer available",
+            "call_not_active": "Call is not active",
+            "forbidden": "You are not allowed to do that",
+            "rate_limited": "Slow down — too many messages",
+            "invalid_payload": "Invalid request",
+            "server_error": "Server error — please try again",
+            "unauthorized": "Realtime authentication failed",
+            "session_replaced": message,
+        }
+        text = labels.get(code, message or "Realtime error")
+
+        if code in (
+            "unauthorized",
+            "session_replaced",
+            "call_not_found",
+            "call_not_active",
+            "forbidden",
+        ):
+            self._reset_call_state(text)
+            return
+
+        if code == "socket":
+            self.call_status.setText("Realtime offline — retrying…")
+        else:
+            self.call_status.setText(text)
+        self._update_call_button()
+
+    def _on_call_ringing(self, payload: dict) -> None:
+        self._call_state = "outgoing"
+        self._call_id = payload.get("call_id")
+        peer = payload.get("to", self.peer_edit.text().strip())
+        self.call_status.setText(f"Calling {peer}…")
+        self.call_button.setText("Cancel")
+        self.peer_edit.setEnabled(False)
+        self.incoming_bar.hide()
+        self._update_call_button()
+
+    def _on_call_incoming(self, payload: dict) -> None:
+        call_id = payload.get("call_id")
+        if not call_id:
+            return
+        if self._call_state != "idle":
+            if self._realtime:
+                self._realtime.reject_call(call_id)
+            return
+
+        caller = payload.get("from") or {}
+        name = caller.get("full_name") or caller.get("com_id") or "Someone"
+        com_id = caller.get("com_id", "")
+        self._call_state = "incoming"
+        self._call_id = call_id
+        self.incoming_label.setText(f"Incoming call from {name} ({com_id})")
+        self.incoming_bar.show()
+        self.call_button.setEnabled(False)
+        self.peer_edit.setEnabled(False)
+
+    def _accept_incoming(self) -> None:
+        call_id = self._call_id
+        if not call_id or self._realtime is None or self._call_state != "incoming":
+            return
+        if self._realtime.accept_call(call_id):
+            self.incoming_bar.hide()
+            self.call_status.setText("Accepting call…")
+            self._update_call_button()
+
+    def _reject_incoming(self) -> None:
+        call_id = self._call_id
+        if not call_id or self._realtime is None:
+            return
+        if self._realtime.reject_call(call_id):
+            self._reset_call_state("Call declined")
+
+    def _on_call_accepted(self, payload: dict) -> None:
+        self._call_state = "active"
+        self._call_id = payload.get("call_id")
+        self.incoming_bar.hide()
+
+        peer = payload.get("peer") or {}
+        name = peer.get("full_name", "")
+        com_id = peer.get("com_id", "")
+        if name and com_id:
+            self.call_status.setText(f"In call with {name} ({com_id})")
+        else:
+            self.call_status.setText(f"In call with {com_id or 'peer'}")
+
+        self.call_button.setText("End call")
+        self.peer_edit.setEnabled(False)
+        self._update_call_button()
+
+    def _on_call_rejected(self, _payload: dict) -> None:
+        self._reset_call_state("Call declined")
+
+    def _on_call_ended(self, payload: dict) -> None:
+        reason = payload.get("reason", "ended")
+        labels = {
+            "timeout": "Call timed out",
+            "peer_disconnected": "Call ended — peer disconnected",
+            "session_replaced": "Call ended",
+            "ended": "Call ended",
+            "rejected": "Call declined",
+        }
+        self._reset_call_state(labels.get(reason, "Call ended"))
+
+    def _on_realtime_content(self, payload: dict) -> None:
+        content = payload.get("content")
+        if not content:
+            return
+        msg_type = "scene" if payload.get("kind") == "scene" else "txt"
+        msg = Message(msg_type, content, mine=False)
+        self.messages_area.add_message(msg)
+        self._show_messages()
+
+    def _reset_call_state(self, status: str | None = None) -> None:
+        self._call_state = "idle"
+        self._call_id = None
+        self.incoming_bar.hide()
+        self.call_button.setText("Connect")
+        self.peer_edit.setEnabled(True)
+        self._update_call_button()
+        if status is not None:
+            self.call_status.setText(status)
 
     def _open_camera(self) -> None:
         if self._camera_worker is not None:
@@ -317,23 +556,35 @@ class HomeScreen(QWidget):
 
     def _on_sentence_changed(self, text: str) -> None:
         self.composing_label.setText(text if text else "—")
+        self._last_sentence = text.strip() if text else ""
+        if hasattr(self, "gen_scene_btn"):
+            self.gen_scene_btn.setEnabled(bool(self._last_sentence))
 
     def _on_sentence_ready(self, text: str) -> None:
         if text:
+            self._last_sentence = text.strip()
             msg = Message("txt", text)
-
             self.messages_area.add_message(msg)
-            # Here Convert the text to the audio (on the sender screen)
-            try:
-                Speaker.say(msg)
-            except Exception as e:
-                print(e)
+
+            if self._call_state == "active" and self._call_id and self._realtime is not None:
+                self._realtime.send_text(self._call_id, text)
+
             self.camera_hud.setText("Sentence sent to My messages")
+            if hasattr(self, "gen_scene_btn"):
+                self.gen_scene_btn.setEnabled(bool(self._last_sentence))
+        else:
+            self._last_sentence = ""
+            if hasattr(self, "gen_scene_btn"):
+                self.gen_scene_btn.setEnabled(False)
         self.composing_label.setText("—")
 
     def _on_gesture(self, word: str, confidence: float) -> None:
         self.gesture_label.setText(f"Sign: {word}  ({confidence * 100:.0f}%)")
         QTimer.singleShot(2500, lambda: self.gesture_label.setText(""))
+        try:
+            Speaker.say(Message("txt", word))
+        except Exception:
+            pass
 
     def _on_gesture_recorded(self, word: str, total: int) -> None:
         self._recording_word = None
@@ -350,6 +601,57 @@ class HomeScreen(QWidget):
         if self._camera_worker is not None:
             self._camera_worker.request_clear()
         self.composing_label.setText("—")
+        self._last_sentence = ""
+        if hasattr(self, "gen_scene_btn"):
+            self.gen_scene_btn.setEnabled(False)
+
+    def _ensure_scene_worker(self):
+        if self._scene_worker is not None:
+            if not self._scene_worker.isRunning():
+                self._scene_worker.start()
+            return self._scene_worker
+        self._scene_worker = SceneWorker(self)
+        self._scene_worker.scene_ready.connect(self._on_scene_ready)
+        self._scene_worker.scene_failed.connect(self._on_scene_failed)
+        self._scene_worker.status_changed.connect(self.camera_hud.setText)
+        self._scene_worker.model_loaded.connect(self._on_scene_model_loaded)
+        if not self._scene_worker.isRunning():
+            self._scene_worker.start()
+        return self._scene_worker
+
+    def _generate_scene(self):
+        sentence = self._last_sentence.strip()
+        if not sentence:
+            return
+        if hasattr(self, "gen_scene_btn"):
+            self.gen_scene_btn.setEnabled(False)
+        self.camera_hud.setText("Generating scene...")
+        worker = self._ensure_scene_worker()
+        worker.generate(sentence)
+
+    def _on_scene_ready(self, sentence: str, data_url: str):
+        msg = Message("scene", data_url, mine=True)
+        self.messages_area.add_message(msg)
+        self._show_messages()
+        if self._call_state == "active" and self._call_id and self._realtime is not None:
+            try:
+                self._realtime.send_scene(self._call_id, data_url)
+            except Exception:
+                pass
+        self.camera_hud.setText("Scene ready")
+        if hasattr(self, "gen_scene_btn"):
+            self.gen_scene_btn.setEnabled(bool(self._last_sentence.strip()))
+
+    def _on_scene_failed(self, sentence: str, error: str):
+        self.camera_hud.setText("Scene generation failed")
+        if hasattr(self, "gen_scene_btn"):
+            self.gen_scene_btn.setEnabled(bool(self._last_sentence.strip()))
+
+    def _on_scene_model_loaded(self, loaded: bool, device: str):
+        if loaded:
+            self.camera_hud.setText(f"Scene model ready ({device})")
+        else:
+            self.camera_hud.setText("Scene model not loaded")
 
     def _on_camera_stopped(self) -> None:
         worker = self._camera_worker
@@ -362,6 +664,9 @@ class HomeScreen(QWidget):
         self.fps_label.setText("")
         self.gesture_label.setText("")
         self.composing_label.setText("—")
+        self._last_sentence = ""
+        if hasattr(self, "gen_scene_btn"):
+            self.gen_scene_btn.setEnabled(False)
         self.camera_video.clear()
         self.camera_video.setText("Camera feed will appear here")
         if worker is not None:
@@ -372,3 +677,11 @@ class HomeScreen(QWidget):
             self._camera_worker.stop()
             self._camera_worker.wait(3000)
             self._camera_worker = None
+        if self._scene_worker is not None:
+            try:
+                self._scene_worker.stop()
+                self._scene_worker.wait(2000)
+            except Exception:
+                pass
+            self._scene_worker.deleteLater()
+            self._scene_worker = None
