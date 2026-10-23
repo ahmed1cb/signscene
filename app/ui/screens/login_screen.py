@@ -10,10 +10,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.widgets.header import Header
+
 
 class _PasswordLineEdit(QWidget):
     def __init__(self, placeholder: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -55,7 +58,8 @@ class LoginScreen(QWidget):
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         card = QFrame()
         card.setObjectName("Card")
@@ -118,7 +122,10 @@ class LoginScreen(QWidget):
         card_layout.addWidget(self.login_button)
         card_layout.addLayout(register_row)
 
-        root.addWidget(card)
+        root.addWidget(Header())
+        root.addStretch(1)
+        root.addWidget(card, 0, Qt.AlignmentFlag.AlignCenter)
+        root.addStretch(1)
 
     def _try_login(self) -> None:
         self.clear_messages()

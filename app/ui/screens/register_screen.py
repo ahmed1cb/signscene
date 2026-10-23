@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.screens.login_screen import _PasswordLineEdit
+from ui.widgets.header import Header
 
 COM_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,10}-\d{4}$")
 
@@ -30,7 +31,8 @@ class RegisterScreen(QWidget):
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         card = QFrame()
         card.setObjectName("Card")
@@ -115,7 +117,10 @@ class RegisterScreen(QWidget):
         card_layout.addWidget(self.register_button)
         card_layout.addLayout(back_row)
 
-        root.addWidget(card)
+        root.addWidget(Header())
+        root.addStretch(1)
+        root.addWidget(card, 0, Qt.AlignmentFlag.AlignCenter)
+        root.addStretch(1)
 
     def _connect_validation(self) -> None:
         self.name_edit.textChanged.connect(self._revalidate)

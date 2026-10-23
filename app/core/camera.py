@@ -18,8 +18,10 @@ from core.asl.templates import TemplateStore
 
 MODEL_PATH = Path(__file__).resolve().parents[1] / "assets" / "models" / "hand_landmarker.task"
 CONNECTIONS = HandLandmarksConnections.HAND_CONNECTIONS
-ACCENT_BGR = (106, 187, 106)  # #66BB6A
-POINT_BGR = (242, 242, 242)
+HUD_BGR = (3, 183, 255)  # #FFB703
+LANDMARK_BGR = (166, 162, 31)  # #1FA2A6
+POINT_BGR = (255, 255, 255)
+HUD_BG_BGR = (48, 19, 11)  # #0B1330
 
 RECORD_MS = 2000
 
@@ -173,11 +175,11 @@ class CameraWorker(QThread):
     def _draw_hud(rgb, word: str | None) -> None:
         if not word:
             return
-        cv2.rectangle(rgb, (10, 10), (320, 52), (18, 18, 18), -1)
-        cv2.rectangle(rgb, (10, 10), (320, 52), ACCENT_BGR, 1)
+        cv2.rectangle(rgb, (10, 10), (320, 52), HUD_BG_BGR, -1)
+        cv2.rectangle(rgb, (10, 10), (320, 52), HUD_BGR, 1)
         cv2.putText(
             rgb, word.lower(), (20, 42),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.9, ACCENT_BGR, 2, cv2.LINE_AA,
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, HUD_BGR, 2, cv2.LINE_AA,
         )
 
     @staticmethod
@@ -185,6 +187,6 @@ class CameraWorker(QThread):
         h, w = rgb.shape[:2]
         points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
         for connection in CONNECTIONS:
-            cv2.line(rgb, points[connection.start], points[connection.end], ACCENT_BGR, 2)
+            cv2.line(rgb, points[connection.start], points[connection.end], LANDMARK_BGR, 2)
         for point in points:
             cv2.circle(rgb, point, 3, POINT_BGR, -1)

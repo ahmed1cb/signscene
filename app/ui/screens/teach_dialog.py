@@ -1,3 +1,4 @@
+from core.asl.templates import GestureTemplate, TemplateStore
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -9,8 +10,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from core.asl.templates import GestureTemplate, TemplateStore
 
 
 class TeachDialog(QWidget):
@@ -88,13 +87,16 @@ class TeachDialog(QWidget):
 
     def _populate(self) -> None:
         while self._list_layout.count() > 1:
-            item = self._list_layout.takeAt(1)
+            item = self._list_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.setParent(None)
                 widget.deleteLater()
         self._rows.clear()
         for word in self._words():
-            self._list_layout.insertWidget(self._list_layout.count() - 1, self._row(word))
+            self._list_layout.insertWidget(
+                self._list_layout.count() - 1, self._row(word)
+            )
 
     def _row(self, word: str) -> QWidget:
         row = QWidget()
@@ -158,4 +160,4 @@ class TeachDialog(QWidget):
             self._populate()
 
     def on_record_progress(self, word: str, remaining_ms: int) -> None:
-        self.status.setText(f"Recording “{word}”… {remaining_ms/1000:.1f}s")
+        self.status.setText(f"Recording “{word}”… {remaining_ms / 1000:.1f}s")

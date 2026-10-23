@@ -1,19 +1,20 @@
-import os
 import sys
+from pathlib import Path
 
 from core import api_client, session
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 from ui import styles
 from ui.main_window import MainWindow
 
-_devnull = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_devnull, 2)
+BASE = Path(__file__).parent
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setStyleSheet(styles.APP_STYLESHEET)
     app.setApplicationName("SignScene")
+    app.setWindowIcon(QIcon(str(BASE / "assets/images/icon.svg")))
 
     window = MainWindow()
     window.show()

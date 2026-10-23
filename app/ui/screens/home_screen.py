@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 import numpy as np
 from core import speaker
@@ -7,7 +8,7 @@ from core.camera import CameraWorker
 from core.message import Message
 from core.speaker import Speaker
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap, QResizeEvent
+from PySide6.QtGui import QIcon, QImage, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -20,10 +21,10 @@ from PySide6.QtWidgets import (
 )
 
 from ui.screens.teach_dialog import TeachDialog
-from ui.screens.voice_dialog import VoiceDialog
 from ui.widgets.message_panel import MessagePanel
 
 COM_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,10}-\d{4}$")
+ICON_PATH = Path(__file__).resolve().parents[2] / "assets/images/icon.svg"
 
 
 class VideoLabel(QLabel):
@@ -64,7 +65,7 @@ class HomeScreen(QWidget):
         title.setObjectName("Title")
 
         self.status_dot = QLabel("●")
-        self.status_dot.setStyleSheet("color: #66BB6A; font-size: 12px;")
+        self.status_dot.setObjectName("StatusDot")
         self.own_id = QLabel("")
         self.own_id.setObjectName("Hint")
 
@@ -72,13 +73,6 @@ class HomeScreen(QWidget):
         identity.setSpacing(6)
         identity.addWidget(self.status_dot)
         identity.addWidget(self.own_id)
-
-        self.voice_button = QPushButton("Voice")
-        self.voice_button.setObjectName("GhostButton")
-        self.voice_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.voice_button.setFixedWidth(90)
-        self.voice_button.setToolTip("Choose the voice, rate and volume for speech")
-        self.voice_button.clicked.connect(self._show_voice_settings)
 
         self.teach_button = QPushButton("Teach signs")
         self.teach_button.setObjectName("GhostButton")
@@ -92,9 +86,14 @@ class HomeScreen(QWidget):
         sign_out.setFixedWidth(110)
         sign_out.clicked.connect(self._on_sign_out)
 
+        logo = QLabel()
+        logo.setPixmap(QIcon(str(ICON_PATH)).pixmap(30, 30))
+        logo.setFixedSize(30, 30)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        bar.addWidget(logo)
         bar.addWidget(title)
         bar.addStretch(1)
-        bar.addWidget(self.voice_button)
         bar.addSpacing(8)
         bar.addWidget(self.teach_button)
         bar.addSpacing(8)
@@ -102,9 +101,6 @@ class HomeScreen(QWidget):
         bar.addSpacing(12)
         bar.addWidget(sign_out)
         return bar
-
-    def _show_voice_settings(self) -> None:
-        VoiceDialog(self).exec()
 
     # ---------- call bar ----------
     def _build_call_bar(self) -> QHBoxLayout:
@@ -200,15 +196,13 @@ class HomeScreen(QWidget):
         camera_layout.addLayout(button_row)
 
         # side panels: messages (default) or the teach panel
-        self.my_messages = MessagePanel(
-            "My messages", "Your signed messages will appear here.", mine=True
-        )
+        self.messages_area = MessagePanel("Messages", "The Chat Messages")
 
         messages_page = QWidget()
         messages_layout = QVBoxLayout(messages_page)
         messages_layout.setContentsMargins(0, 0, 0, 0)
         messages_layout.setSpacing(14)
-        messages_layout.addWidget(self.my_messages, stretch=1)
+        messages_layout.addWidget(self.messages_area, stretch=1)
 
         self._messages_page = messages_page
 
@@ -328,7 +322,7 @@ class HomeScreen(QWidget):
         if text:
             msg = Message("txt", text)
 
-            self.my_messages.add_message(msg)
+            self.messages_area.add_message(msg)
             # Here Convert the text to the audio (on the sender screen)
             try:
                 Speaker.say(msg)

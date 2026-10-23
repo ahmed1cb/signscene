@@ -16,15 +16,10 @@ class MessagePanel(QFrame):
     """Chat-style message list. Bubbles stack bottom-up; empty until add_message()."""
 
     def __init__(
-        self,
-        title: str,
-        empty_text: str,
-        mine: bool = False,
-        parent: QWidget | None = None,
+        self, title: str, empty_text: str, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
         self.setObjectName("Card")
-        self._mine = mine
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 12)
@@ -62,11 +57,11 @@ class MessagePanel(QFrame):
         self._scroll.setVisible(True)
 
         bubble = QPushButton(msg.content)
-        bubble.setObjectName("BubbleMine" if self._mine else "BubbleTheirs")
+        bubble.setObjectName("BubbleMine" if msg.mine else "BubbleTheirs")
         bubble.clicked.connect(lambda x=0: Speaker.say(msg))
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
-        if self._mine:
+        if msg.mine:
             row.addStretch(1)
             row.addWidget(bubble, stretch=0)
         else:

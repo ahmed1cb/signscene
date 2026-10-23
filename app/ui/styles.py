@@ -1,18 +1,19 @@
-ACCENT = "#2E7D32"
-ACCENT_HOVER = "#388E3C"
-ACCENT_ACTIVE = "#1B5E20"
-ACCENT_SOFT = "#1B3A1F"
+ACCENT = "#FFB703"
+ACCENT_HOVER = "#FFC533"
+ACCENT_ACTIVE = "#D99C00"
+ACCENT_SOFT = "#2B2410"
+ACCENT_TEXT = "#0B1330"
 
-BG = "#121212"
-PANEL = "#1E1E1E"
-PANEL_ALT = "#252525"
-BORDER = "#333333"
+BG = "#0B1330"
+PANEL = "#111D40"
+PANEL_ALT = "#182A55"
+BORDER = "#263A6B"
 BORDER_FOCUS = ACCENT
 
-TEXT = "#F2F2F2"
-TEXT_MUTED = "#9E9E9E"
-ERROR = "#EF5350"
-SUCCESS = "#66BB6A"
+TEXT = "#F4F7FF"
+TEXT_MUTED = "#9CABCF"
+ERROR = "#FF6B6B"
+SUCCESS = "#4DD0D4"
 
 APP_STYLESHEET = f"""
 QWidget {{
@@ -30,6 +31,18 @@ QMainWindow {{
     background-color: {PANEL};
     border: 1px solid {BORDER};
     border-radius: 12px;
+}}
+
+/* ---------- Top bar ---------- */
+#TopBar {{
+    background-color: {PANEL};
+    border-bottom: 1px solid {BORDER};
+}}
+
+#Brand {{
+    font-size: 18px;
+    font-weight: 700;
+    color: {TEXT};
 }}
 
 /* ---------- Headings ---------- */
@@ -52,6 +65,7 @@ QLineEdit {{
     padding: 10px 12px;
     color: {TEXT};
     selection-background-color: {ACCENT};
+    selection-color: {ACCENT_TEXT};
 }}
 
 QLineEdit:focus {{
@@ -73,7 +87,7 @@ QLineEdit:disabled {{
 /* ---------- Buttons ---------- */
 QPushButton {{
     background-color: {ACCENT};
-    color: white;
+    color: {ACCENT_TEXT};
     border: none;
     border-radius: 8px;
     padding: 10px 18px;
@@ -184,6 +198,11 @@ QFrame#Card[recognized="true"] {{
     font-size: 12px;
 }}
 
+#StatusDot {{
+    color: {SUCCESS};
+    font-size: 12px;
+}}
+
 #ErrorLabel {{
     color: {ERROR};
     font-size: 12px;
@@ -258,7 +277,7 @@ QComboBox QAbstractItemView {{
     border: 1px solid {BORDER};
     color: {TEXT};
     selection-background-color: {ACCENT};
-    selection-color: white;
+    selection-color: {ACCENT_TEXT};
     outline: none;
 }}
 
