@@ -7,7 +7,7 @@ export function processSentence(sentence, config) {
   const s = normalize(sentence);
   if (!s) {
     return {
-      prompt: 'A clean, minimal illustration. Soft natural lighting, neutral background, photorealistic illustration.',
+      prompt: 'A simple black line drawing, minimal sketch, bold clean outlines, isolated on a pure white background, no color, no shading, no scenery, no text.',
       negative_prompt: config?.negative_prompt || '',
       defaults: config?.defaults || {},
     };
@@ -39,7 +39,7 @@ export function processSentence(sentence, config) {
     }
   }
 
-  const template = config?.template || 'A clean, minimal illustration of "{sentence}". Clear subject, soft natural lighting, neutral background, photorealistic illustration, no text.';
+  const template = config?.template || 'A simple black line drawing of "{sentence}", minimal sketch, bold clean outlines, isolated on a pure white background, no color, no shading, no scenery, no text.';
   const prompt = template.replace('{sentence}', s);
   return {
     prompt,

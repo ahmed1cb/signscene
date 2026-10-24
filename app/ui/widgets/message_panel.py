@@ -4,8 +4,8 @@ from pathlib import Path
 
 from core.message import Message
 from core.speaker import Speaker
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QImage, QPixmap, QResizeEvent
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QImage, QPixmap, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -43,9 +43,7 @@ class _SectionPanel(QFrame):
         self._scroll = QScrollArea()
         self._scroll.setObjectName("MessageScroll")
         self._scroll.setWidgetResizable(True)
-        self._scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setVisible(False)
 
@@ -53,7 +51,7 @@ class _SectionPanel(QFrame):
         self._list.setStyleSheet("background: transparent;")
         self._list_layout = QVBoxLayout(self._list)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
-        self._list_layout.setSpacing(6)
+        self._list_layout.setSpacing(0)
         self._list_layout.addStretch(1)
 
         self._scroll.setWidget(self._list)
@@ -98,55 +96,93 @@ class MessagePanel(_SectionPanel):
 
 
 class ScenePreview(QLabel):
-    MAX_HEIGHT = 220
+    """Shows the whole image, scaled to fit the available space.
+
+    Keeps the aspect ratio (no stretching, no cropping).
+    """
 
     def __init__(self, pixmap: QPixmap, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("ScenePreview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        self.setMinimumHeight(80)
+        # Ignored: the pixmap size must never dictate the widget size.
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        self.setScaledContents(False)
         self._source = pixmap
-        self._last_width = 0
+        self._last_size = QSize()
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, 0)
+
+    def sizeHint(self) -> QSize:
+        return QSize(200, 200)
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
         self._rescale()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        if self.width() != self._last_width:
-            self._rescale()
+        self._rescale()
 
     def _rescale(self) -> None:
-        width = max(1, self.width() - 10)
-        self._last_width = self.width()
-        scaled = self._source.scaledToWidth(
-            width, Qt.TransformationMode.SmoothTransformation
+        if self._source.isNull():
+            return
+        size = self.size()
+        if size.width() < 2 or size.height() < 2:
+            return
+        if size == self._last_size:
+            return
+        self._last_size = size
+        scaled = self._source.scaled(
+            size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
         )
-        if scaled.height() > self.MAX_HEIGHT:
-            scaled = scaled.scaledToHeight(
-                self.MAX_HEIGHT, Qt.TransformationMode.SmoothTransformation
-            )
-        self.setPixmap(scaled)
-        self.setFixedHeight(scaled.height() + 10)
+        if not scaled.isNull():
+            self.setPixmap(scaled)
 
 
 class ScenePanel(_SectionPanel):
+    def __init__(
+        self, title: str, empty_text: str, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(title, empty_text, parent)
+        self._current = None
+
+    def clear(self) -> None:
+        # Remove everything, including the trailing stretch, so the
+        # preview can fill the whole panel.
+        while self._list_layout.count():
+            item = self._list_layout.takeAt(0)
+            if item is None:
+                continue
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+        self._current = None
+
     def add_scene(self, content, mine: bool = True) -> None:
-        self._show_content()
+        try:
+            self.clear()
+            self._show_content()
 
-        pixmap = _load_pixmap(content)
-        if pixmap is None:
-            label = QLabel("Scene image unavailable")
-            label.setObjectName("Hint")
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setWordWrap(True)
-            self._add_widget(label)
+            pixmap = _load_pixmap(content)
+            if pixmap is None or pixmap.isNull():
+                label = QLabel("Scene image unavailable")
+                label.setObjectName("Hint")
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                label.setWordWrap(True)
+                self._list_layout.addWidget(label, 1)
+                return
+
+            preview = ScenePreview(pixmap)
+            preview.setToolTip("Scene")
+            self._current = preview
+            self._list_layout.addWidget(preview, 1)
+        except Exception:
             return
-
-        preview = ScenePreview(pixmap)
-        preview.setToolTip("Scene")
-        self._add_widget(preview)
 
 
 class MessagesArea(QWidget):
