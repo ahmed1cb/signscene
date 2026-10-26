@@ -38,8 +38,8 @@ class TeachDialog(QWidget):
         header.addWidget(close)
 
         hint = QLabel(
-            "Press Record on a word, then perform the sign clearly for 2 seconds "
-            "after the countdown. Record 3–5 times per word for best accuracy. "
+            "Press Record on a word, then perform the sign clearly for 2 seconds. "
+            "Record 3–5 times per word for best accuracy. "
             "The camera must be running."
         )
         hint.setObjectName("Hint")
@@ -131,7 +131,9 @@ class TeachDialog(QWidget):
         if not word:
             return
         self.custom_edit.clear()
-        self._templates.templates.setdefault(word, GestureTemplate(word=word))
+        if word not in self._templates.templates:
+            self._templates.templates[word] = GestureTemplate(word=word)
+            self._templates.save()
         self._populate()
 
     def _record(self, word: str) -> None:

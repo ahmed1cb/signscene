@@ -21,10 +21,7 @@ class FingerState(Enum):
     EXTENDED = 2
 
 
-class ThumbState(Enum):
-    CURLED = 0
-    HALF = 1
-    EXTENDED = 2
+ThumbState = FingerState
 
 
 @dataclass

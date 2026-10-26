@@ -18,10 +18,10 @@ from core.asl.templates import TemplateStore
 
 MODEL_PATH = Path(__file__).resolve().parents[1] / "assets" / "models" / "hand_landmarker.task"
 CONNECTIONS = HandLandmarksConnections.HAND_CONNECTIONS
-HUD_BGR = (3, 183, 255)  # #FFB703
-LANDMARK_BGR = (166, 162, 31)  # #1FA2A6
-POINT_BGR = (255, 255, 255)
-HUD_BG_BGR = (48, 19, 11)  # #0B1330
+HUD_RGB = (255, 183, 3)  # #FFB703
+LANDMARK_RGB = (31, 162, 166)  # #1FA2A6
+POINT_RGB = (255, 255, 255)
+HUD_BG_RGB = (11, 19, 48)  # #0B1330
 
 RECORD_MS = 2000
 
@@ -35,6 +35,7 @@ class CameraWorker(QThread):
     sentence_ready = Signal(str)
     gesture_detected = Signal(str, float)  # word, confidence
     gesture_recorded = Signal(str, int)  # word, total samples
+    gesture_record_failed = Signal(str)  # word, not enough visible hand frames
     record_progress = Signal(int)  # remaining ms in the current recording
     fps_changed = Signal(float)
     stopped = Signal()
@@ -118,7 +119,10 @@ class CameraWorker(QThread):
                         label = "Right"
                         if result.handedness and result.handedness[index]:
                             label = result.handedness[index][0].category_name or "Right"
-                        hands.append((landmarks, label))
+                        world = None
+                        if result.hand_world_landmarks:
+                            world = result.hand_world_landmarks[index]
+                        hands.append((landmarks, label, world))
                         self._draw_landmarks(rgb, landmarks)
 
                 self._apply_requests(ts_ms)
@@ -128,7 +132,13 @@ class CameraWorker(QThread):
                 if gesture.recorded_word:
                     total = self._templates.sample_count(gesture.recorded_word)
                     self.gesture_recorded.emit(gesture.recorded_word, total)
-                    self.status_changed. emit(f"Recorded “{gesture.recorded_word}” ({total} samples)")
+                    self.status_changed.emit(f"Recorded “{gesture.recorded_word}” ({total} samples)")
+                elif gesture.record_failed_word:
+                    self.gesture_record_failed.emit(gesture.record_failed_word)
+                    self.status_changed.emit(
+                        f"Recording “{gesture.record_failed_word}” failed — "
+                        "keep your hand in view"
+                    )
                 if gesture.recording:
                     self.record_progress.emit(gesture.record_remaining_ms)
 
@@ -174,11 +184,11 @@ class CameraWorker(QThread):
     def _draw_hud(rgb, word: str | None) -> None:
         if not word:
             return
-        cv2.rectangle(rgb, (10, 10), (320, 52), HUD_BG_BGR, -1)
-        cv2.rectangle(rgb, (10, 10), (320, 52), HUD_BGR, 1)
+        cv2.rectangle(rgb, (10, 10), (320, 52), HUD_BG_RGB, -1)
+        cv2.rectangle(rgb, (10, 10), (320, 52), HUD_RGB, 1)
         cv2.putText(
             rgb, word.lower(), (20, 42),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.9, HUD_BGR, 2, cv2.LINE_AA,
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, HUD_RGB, 2, cv2.LINE_AA,
         )
 
     @staticmethod
@@ -186,6 +196,6 @@ class CameraWorker(QThread):
         h, w = rgb.shape[:2]
         points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
         for connection in CONNECTIONS:
-            cv2.line(rgb, points[connection.start], points[connection.end], LANDMARK_BGR, 2)
+            cv2.line(rgb, points[connection.start], points[connection.end], LANDMARK_RGB, 2)
         for point in points:
-            cv2.circle(rgb, point, 3, POINT_BGR, -1)
+            cv2.circle(rgb, point, 3, POINT_RGB, -1)

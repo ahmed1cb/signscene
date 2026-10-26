@@ -7,9 +7,8 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths
-
 from core.asl.gesture_types import SignFrame
+from core.config import config_path
 
 RESAMPLE_N = 30
 MATCH_THRESHOLD = 4.5  # mean per-frame distance
@@ -19,15 +18,14 @@ _SHAPE = {0: 0.0, 1: 0.5, 2: 1.0}  # keyed by FingerState/ThumbState .value
 
 
 def _templates_path() -> Path:
-    base = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation)
-    return Path(base) / "gestures.json"
+    return config_path("gestures.json")
 
 
 def frame_vector(frame: SignFrame, primary: str = "Right") -> list[float] | None:
-    """Fixed-length per-frame feature vector, or None when no hand is present."""
-    if not frame.hands:
+    """Fixed-length per-frame feature vector, or None when the primary hand is absent."""
+    p = frame.hands.get(primary)
+    if p is None:
         return None
-    p = frame.hands.get(primary) or next(iter(frame.hands.values()))
     f = p.features
     vec = [
         _SHAPE[f.index.value],
@@ -58,8 +56,29 @@ def frame_vector(frame: SignFrame, primary: str = "Right") -> list[float] | None
     return vec
 
 
+def _sequence_vectors(
+    frames: list[SignFrame], primary: str | None = None
+) -> list[list[float]]:
+    """Feature vectors for one consistently-chosen hand across a sequence."""
+    if primary is not None:
+        return [
+            v for frame in frames if (v := frame_vector(frame, primary)) is not None
+        ]
+
+    counts: dict[str, int] = {}
+    for frame in frames:
+        for name in frame.hands:
+            counts[name] = counts.get(name, 0) + 1
+    if not counts:
+        return []
+    primary = "Right" if "Right" in counts else max(counts, key=counts.get)
+    return [
+        v for frame in frames if (v := frame_vector(frame, primary)) is not None
+    ]
+
+
 def _normalize_positions(vectors: list[list[float]]) -> list[list[float]]:
-    """Shift primary hand positions to the first frame and scale by palm size."""
+    """Shift primary hand positions relative to the first frame."""
     if not vectors:
         return vectors
     x0, y0 = vectors[0][8], vectors[0][9]
@@ -119,8 +138,10 @@ class TemplateStore:
         self.load()
 
     # ---- recording ----
-    def add_sample(self, word: str, frames: list[SignFrame], primary: str = "Right") -> bool:
-        vectors = [v for frame in frames if (v := frame_vector(frame, primary)) is not None]
+    def add_sample(
+        self, word: str, frames: list[SignFrame], primary: str | None = None
+    ) -> bool:
+        vectors = _sequence_vectors(frames, primary)
         if len(vectors) < 5:
             return False
         sample = _resample(_normalize_positions(vectors))
@@ -138,9 +159,26 @@ class TemplateStore:
         return len(tpl.samples) if tpl else 0
 
     # ---- matching ----
-    def match(self, frames: list[SignFrame], primary: str = "Right") -> tuple[str, float, float] | None:
-        vectors = [v for frame in frames if (v := frame_vector(frame, primary)) is not None]
-        if len(vectors) < 5 or not self.templates:
+    def match(
+        self, frames: list[SignFrame], primary: str | None = None
+    ) -> tuple[str, float, float] | None:
+        if not self.templates:
+            return None
+        if primary is not None:
+            return self._match_vectors(_sequence_vectors(frames, primary))
+
+        best: tuple[str, float, float] | None = None
+        labels = {name for frame in frames for name in frame.hands}
+        for label in labels:
+            result = self._match_vectors(_sequence_vectors(frames, label))
+            if result is not None and (best is None or result[2] < best[2]):
+                best = result
+        return best
+
+    def _match_vectors(
+        self, vectors: list[list[float]]
+    ) -> tuple[str, float, float] | None:
+        if len(vectors) < 5:
             return None
         sample = _resample(_normalize_positions(vectors))
 

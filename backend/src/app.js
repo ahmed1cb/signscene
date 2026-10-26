@@ -1,6 +1,5 @@
 import http from 'node:http';
 
-import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
@@ -19,12 +18,6 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(
-  cors({
-    origin: (process.env.CORS_ORIGIN || '*').split(',').map((s) => s.trim()),
-    credentials: true,
-  })
-);
 app.use(express.json());
 
 const globalLimiter = rateLimit({

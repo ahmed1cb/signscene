@@ -1,6 +1,7 @@
 import re
 
 from core import api_client
+from core.tasks import run_async
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
@@ -24,6 +25,7 @@ class RegisterScreen(QWidget):
         super().__init__(parent)
         self._on_registered = on_registered
         self._on_go_login = on_go_login
+        self._busy = False
         self._build_ui()
         self._connect_validation()
 
@@ -155,27 +157,43 @@ class RegisterScreen(QWidget):
         return True
 
     def _revalidate(self) -> None:
+        if self._busy:
+            return
         self.register_button.setEnabled(self._form_valid())
 
     def _try_register(self) -> None:
+        if self._busy:
+            return
         self._hide_error()
         if not self._form_valid():
             self._show_error("Please fix the highlighted fields.")
             return
 
-        try:
-            user = api_client.register(
-                full_name=self.name_edit.text().strip(),
-                com_id=self.com_id_edit.text().strip(),
-                password=self.password.text(),
-            )
-        except api_client.AuthError:
-            self._show_error(
-                "Something went wrong, Please check the connection and try again"
-            )
-            return
+        full_name = self.name_edit.text().strip()
+        com_id = self.com_id_edit.text().strip()
+        password = self.password.text()
 
+        self._set_busy(True)
+        run_async(
+            lambda: api_client.register(full_name, com_id, password),
+            on_success=self._on_register_result,
+            on_error=self._on_register_error,
+        )
+
+    def _on_register_result(self, user: dict) -> None:
+        self._set_busy(False)
         self._on_registered(user)
+
+    def _on_register_error(self, message: str) -> None:
+        self._set_busy(False)
+        self._show_error(message or "Could not create the account. Please try again.")
+
+    def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        self.register_button.setEnabled(not busy and self._form_valid())
+        self.register_button.setText(
+            "Creating account…" if busy else "Create account"
+        )
 
     def _show_error(self, message: str) -> None:
         self.error_label.setText(message)
@@ -192,4 +210,5 @@ class RegisterScreen(QWidget):
         self.confirm.edit.clear()
         self._set_com_id_state(None, "Letters, then a dash and 4 digits.")
         self._hide_error()
+        self._set_busy(False)
         self._revalidate()

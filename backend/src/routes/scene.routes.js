@@ -1,42 +1,42 @@
 import { Router } from 'express';
-import { getConfig, reloadConfig } from '../scene/loader.js';
-import { processSentence } from '../scene/builder.js';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
+
+import { requireAuth } from '../middleware/auth.js';
+import { generateScene, SceneGenerationError } from '../scene/generator.js';
 
 const router = Router();
 
-router.get('/config', (req, res) => {
-  try {
-    const config = getConfig();
-    res.json({ success: true, config });
-  } catch (err) {
-    console.error('scene config error:', err);
-    res.status(500).json({ success: false, error: 'server error' });
-  }
+const generateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-router.post('/process', (req, res) => {
-  try {
-    const { sentence } = req.body || {};
-    if (typeof sentence !== 'string' || !sentence.trim()) {
-      return res.status(400).json({ success: false, error: 'sentence required' });
-    }
-    const config = getConfig();
-    const result = processSentence(sentence, config);
-    res.json({ success: true, ...result });
-  } catch (err) {
-    console.error('scene process error:', err);
-    res.status(500).json({ success: false, error: 'server error' });
-  }
-
+const generateSchema = z.object({
+  sentence: z.string().trim().min(1).max(500),
 });
 
-router.post('/reload', (req, res) => {
+router.post('/generate', requireAuth, generateLimiter, async (req, res) => {
+  const parsed = generateSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: parsed.error.issues[0]?.message || 'invalid request',
+    });
+  }
+
   try {
-    const config = reloadConfig();
-    res.json({ success: true, config });
+    const result = await generateScene(parsed.data.sentence);
+    res.json({ success: true, sentence: parsed.data.sentence, ...result });
   } catch (err) {
-    console.error('scene reload error:', err);
-    res.status(500).json({ success: false, error: 'server error' });
+    const known = err instanceof SceneGenerationError;
+    if (!known) console.error('scene generate error:', err);
+    res.status(known ? err.status : 502).json({
+      success: false,
+      error: known ? err.message : 'could not generate scene',
+    });
   }
 });
 

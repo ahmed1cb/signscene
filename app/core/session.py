@@ -1,15 +1,11 @@
 import json
 import os
-from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths
+from core.config import config_path
 
 
-def _session_path() -> Path:
-    base = QStandardPaths.writableLocation(
-        QStandardPaths.StandardLocation.AppConfigLocation
-    )
-    return Path(base) / "session.json"
+def _session_path():
+    return config_path("session.json")
 
 
 def save(token: str, user: dict) -> None:

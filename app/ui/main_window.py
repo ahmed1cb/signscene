@@ -2,7 +2,8 @@ from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QCloseEvent, QResizeEvent
 from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
-from core import session
+from core import api_client, session
+from core.tasks import run_async
 from ui.screens.home_screen import HomeScreen
 from ui.screens.login_screen import LoginScreen
 from ui.screens.register_screen import RegisterScreen
@@ -53,7 +54,7 @@ class MainWindow(QWidget):
         root.addWidget(self.stack, 1)
 
         self.login = LoginScreen(
-            on_login_success=self._enter_home,
+            on_login_success=self.enter_home,
             on_go_register=self.show_register,
         )
         self.register = RegisterScreen(
@@ -136,18 +137,37 @@ class MainWindow(QWidget):
             self._update_handle_visibility()
 
     def show_login(self) -> None:
-        self.home.shutdown_realtime()
+        self.home.reset()
         session.clear()
         self.login.reset()
-        self.home.peer_edit.clear()
-        self.home.call_status.setText("")
         self.stack.setCurrentWidget(self.login)
 
     def show_register(self) -> None:
         self.register.reset()
         self.stack.setCurrentWidget(self.register)
 
-    def _enter_home(self, user: dict) -> None:
+    def restore_session(self) -> None:
+        saved = session.load() or {}
+        token = saved.get("token")
+        if not token:
+            return
+
+        def on_success(user: dict) -> None:
+            current = session.load() or {}
+            if current.get("token") != token:
+                return
+            if self.stack.currentWidget() is not self.login:
+                return
+            self.enter_home(user)
+
+        def on_error(_message: str) -> None:
+            current = session.load() or {}
+            if current.get("token") == token:
+                session.clear()
+
+        run_async(lambda: api_client.me(token), on_success, on_error)
+
+    def enter_home(self, user: dict) -> None:
         self.home.set_user(
             user.get("full_name", ""),
             user.get("com_id", ""),

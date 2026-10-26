@@ -16,16 +16,20 @@ const authLimiter = rateLimit({
 });
 
 router.post('/register', authLimiter, async (req, res) => {
-  const { error, value } = registerSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ success: false, error: error.message });
+  const parsed = registerSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: parsed.error.issues[0]?.message || 'invalid request',
+    });
   }
 
-  const { full_name, com_id, password } = value;
+  const { full_name, com_id, password } = parsed.data;
   const pool = getPool();
-  const conn = await pool.getConnection();
+  let conn;
 
   try {
+    conn = await pool.getConnection();
     const [existing] = await conn.execute('SELECT id FROM users WHERE com_id = ?', [com_id]);
     if (existing.length) {
       return res.status(409).json({ success: false, error: 'com_id already exists' });
@@ -51,17 +55,20 @@ router.post('/register', authLimiter, async (req, res) => {
     console.error('register error:', err);
     res.status(500).json({ success: false, error: 'server error' });
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 });
 
 router.post('/login', authLimiter, async (req, res) => {
-  const { error, value } = loginSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ success: false, error: error.message });
+  const parsed = loginSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: parsed.error.issues[0]?.message || 'invalid request',
+    });
   }
 
-  const { com_id, password } = value;
+  const { com_id, password } = parsed.data;
   const pool = getPool();
   try {
     const [rows] = await pool.execute(

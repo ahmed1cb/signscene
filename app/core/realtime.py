@@ -1,11 +1,10 @@
 import json
-import os
 
 from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 from PySide6.QtNetwork import QAbstractSocket
 from PySide6.QtWebSockets import QWebSocket
 
-WS_URL = os.environ.get("SIGNSCENE_WS_URL", "ws://127.0.0.1:8080/ws")
+from core.config import WS_URL
 CLOSE_REPLACED = 4001
 CLOSE_UNAUTHORIZED = 4003
 

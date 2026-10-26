@@ -1,7 +1,6 @@
 import json
-from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths
+from core.config import config_path
 
 DEFAULTS = {
     "voice_id": None,
@@ -11,11 +10,8 @@ DEFAULTS = {
 }
 
 
-def _settings_path() -> Path:
-    base = QStandardPaths.writableLocation(
-        QStandardPaths.StandardLocation.AppConfigLocation
-    )
-    return Path(base) / "settings.json"
+def _settings_path():
+    return config_path("settings.json")
 
 
 def load() -> dict:

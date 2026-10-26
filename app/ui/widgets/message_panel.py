@@ -4,7 +4,7 @@ from pathlib import Path
 
 from core.message import Message
 from core.speaker import Speaker
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QFrame,
@@ -21,7 +21,11 @@ from PySide6.QtWidgets import (
 
 class _SectionPanel(QFrame):
     def __init__(
-        self, title: str, empty_text: str, parent: QWidget | None = None
+        self,
+        title: str,
+        empty_text: str,
+        parent: QWidget | None = None,
+        header_action: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("Card")
@@ -30,9 +34,17 @@ class _SectionPanel(QFrame):
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(8)
 
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(8)
+
         header = QLabel(title)
         header.setObjectName("Subtitle")
-        layout.addWidget(header)
+        header_row.addWidget(header)
+        header_row.addStretch(1)
+        if header_action is not None:
+            header_row.addWidget(header_action)
+        layout.addLayout(header_row)
 
         self._empty = QLabel(empty_text)
         self._empty.setObjectName("Hint")
@@ -60,6 +72,29 @@ class _SectionPanel(QFrame):
     def _show_content(self) -> None:
         self._empty.setVisible(False)
         self._scroll.setVisible(True)
+
+    def clear(self, keep_stretch: bool = True) -> None:
+        while self._list_layout.count():
+            item = self._list_layout.takeAt(0)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+            else:
+                layout = item.layout()
+                if layout is not None:
+                    _clear_layout(layout)
+                    layout.deleteLater()
+        if keep_stretch:
+            self._list_layout.addStretch(1)
+        self._empty.setVisible(True)
+        self._scroll.setVisible(False)
+        self._on_clear()
+
+    def _on_clear(self) -> None:
+        pass
 
     def _add_layout(self, layout: QHBoxLayout) -> None:
         self._list_layout.addLayout(layout)
@@ -144,28 +179,41 @@ class ScenePreview(QLabel):
 
 
 class ScenePanel(_SectionPanel):
-    def __init__(
-        self, title: str, empty_text: str, parent: QWidget | None = None
-    ) -> None:
-        super().__init__(title, empty_text, parent)
-        self._current = None
+    send_requested = Signal()
 
-    def clear(self) -> None:
-        # Remove everything, including the trailing stretch, so the
-        # preview can fill the whole panel.
-        while self._list_layout.count():
-            item = self._list_layout.takeAt(0)
-            if item is None:
-                continue
-            w = item.widget()
-            if w is not None:
-                w.setParent(None)
-                w.deleteLater()
+    def __init__(
+        self,
+        title: str,
+        empty_text: str,
+        parent: QWidget | None = None,
+        with_send: bool = False,
+    ) -> None:
+        self._send_button = None
+        header_action = None
+        if with_send:
+            header_action = QPushButton("Send")
+            header_action.setObjectName("GhostButton")
+            header_action.setCursor(Qt.CursorShape.PointingHandCursor)
+            header_action.setFixedWidth(80)
+            header_action.setEnabled(False)
+            header_action.clicked.connect(lambda: self.send_requested.emit())
+
+        super().__init__(title, empty_text, parent, header_action=header_action)
+        self._current = None
+        self._send_button = header_action
+
+    def set_send_state(self, enabled: bool, label: str = "Send") -> None:
+        if self._send_button is None:
+            return
+        self._send_button.setEnabled(enabled)
+        self._send_button.setText(label)
+
+    def _on_clear(self) -> None:
         self._current = None
 
     def add_scene(self, content, mine: bool = True) -> None:
         try:
-            self.clear()
+            self.clear(keep_stretch=False)
             self._show_content()
 
             pixmap = _load_pixmap(content)
@@ -186,6 +234,8 @@ class ScenePanel(_SectionPanel):
 
 
 class MessagesArea(QWidget):
+    send_scene_requested = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -198,8 +248,11 @@ class MessagesArea(QWidget):
         self.scene_split.setChildrenCollapsible(False)
         self.scene_split.setHandleWidth(8)
 
-        self.scenes_mine = ScenePanel("My Scenes", "Your generated scenes appear here")
+        self.scenes_mine = ScenePanel(
+            "My Scenes", "Your generated scenes appear here", with_send=True
+        )
         self.scenes_peer = ScenePanel("Other Scenes", "Peer's scenes appear here")
+        self.scenes_mine.send_requested.connect(self.send_scene_requested)
 
         self.scene_split.addWidget(self.scenes_mine)
         self.scene_split.addWidget(self.scenes_peer)
@@ -222,6 +275,15 @@ class MessagesArea(QWidget):
 
         layout.addWidget(self.main_split)
 
+    def set_scene_send_state(self, enabled: bool, label: str = "Send") -> None:
+        self.scenes_mine.set_send_state(enabled, label)
+
+    def clear(self) -> None:
+        self.scenes_mine.clear()
+        self.scenes_peer.clear()
+        self.messages.clear()
+        self.set_scene_send_state(False, "Send")
+
     def add_message(self, msg: Message) -> None:
         if msg.type == "scene":
             if getattr(msg, "mine", True):
@@ -230,6 +292,22 @@ class MessagesArea(QWidget):
                 self.scenes_peer.add_scene(msg.content, False)
         else:
             self.messages.add_message(msg)
+
+
+def _clear_layout(layout) -> None:
+    while layout.count():
+        item = layout.takeAt(0)
+        if item is None:
+            continue
+        widget = item.widget()
+        if widget is not None:
+            widget.setParent(None)
+            widget.deleteLater()
+        else:
+            child = item.layout()
+            if child is not None:
+                _clear_layout(child)
+                child.deleteLater()
 
 
 def _load_pixmap(content) -> QPixmap | None:

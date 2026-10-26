@@ -172,6 +172,12 @@ QPushButton:disabled {{
     border: 1px solid {ACCENT};
 }}
 
+#GhostButton:disabled {{
+    background: transparent;
+    border: 1px solid {BORDER};
+    color: {TEXT_MUTED};
+}}
+
 /* ---------- Labels ---------- */
 QLabel {{
     background: transparent;
@@ -310,25 +316,6 @@ QLabel {{
 #SuccessLabel {{
     color: {SUCCESS};
     font-size: 12px;
-}}
-
-/* ---------- Checkboxes ---------- */
-QCheckBox {{
-    spacing: 8px;
-    color: {TEXT};
-}}
-
-QCheckBox::indicator {{
-    width: 18px;
-    height: 18px;
-    border: 1px solid {BORDER};
-    border-radius: 4px;
-    background-color: {PANEL_ALT};
-}}
-
-QCheckBox::indicator:checked {{
-    background-color: {ACCENT};
-    border: 1px solid {ACCENT};
 }}
 
 /* ---------- Password toggle button ---------- */

@@ -49,9 +49,15 @@ class HomeScreen(QWidget):
         self._call_state = "idle"  # idle | outgoing | incoming | active
         self._call_id: str | None = None
         self._last_sentence: str = ""
+        self._composing = False
+        self._scene_generating = False
+        self._last_scene: str = ""
+        self._scene_sent = False
+        self._token: str | None = None
         self._scene_worker: SceneWorker | None = None
         speaker.apply_saved()
         self._build_ui()
+        self._update_scene_send_button()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -189,12 +195,17 @@ class HomeScreen(QWidget):
         self.camera_hud.setObjectName("CameraHud")
         self.camera_hud.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        self.scene_status = QLabel("")
+        self.scene_status.setObjectName("Hint")
+        self.scene_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self.fps_label = QLabel("")
         self.fps_label.setObjectName("CameraHud")
 
         status_row = QHBoxLayout()
         status_row.setSpacing(10)
         status_row.addWidget(self.camera_hud)
+        status_row.addWidget(self.scene_status)
         status_row.addStretch(1)
         status_row.addWidget(self.fps_label)
 
@@ -233,6 +244,7 @@ class HomeScreen(QWidget):
 
         # side panels: messages (default) or the teach panel
         self.messages_area = MessagesArea()
+        self.messages_area.send_scene_requested.connect(self._send_scene)
 
         messages_page = QWidget()
         messages_layout = QVBoxLayout(messages_page)
@@ -279,7 +291,34 @@ class HomeScreen(QWidget):
     # ---------- behavior ----------
     def set_user(self, full_name: str, com_id: str) -> None:
         self.own_id.setText(com_id)
+        self.name.setText(full_name)
         self.setToolTip(full_name)
+
+    def reset(self) -> None:
+        self.shutdown_camera()
+        self.shutdown_realtime()
+        self._recording_word = None
+        self._reset_call_state()
+        self._scene_sent = False
+        self._scene_generating = False
+        self._composing = False
+        self._last_scene = ""
+        self._last_sentence = ""
+        self.peer_edit.clear()
+        self.call_status.setText("")
+        self.own_id.setText("")
+        self.name.setText("")
+        self.setToolTip("")
+        self.camera_hud.setText("Hand tracking is off")
+        self.scene_status.setText("")
+        self.fps_label.setText("")
+        self.gesture_label.setText("")
+        self.composing_label.setText("—")
+        self._teach.status.setText("")
+        self.messages_area.clear()
+        self._show_messages()
+        self._update_scene_send_button()
+        self._update_generate_button()
 
     def _on_peer_changed(self, text: str) -> None:
         upper = text.upper()
@@ -338,6 +377,7 @@ class HomeScreen(QWidget):
         if not token:
             return
 
+        self._token = token
         if self._realtime is not None:
             self._realtime.close()
             self._realtime.deleteLater()
@@ -354,19 +394,23 @@ class HomeScreen(QWidget):
         self._realtime.connection_changed.connect(self._on_realtime_connection)
         self._realtime.connect(token)
         self.call_status.setText("Connecting to realtime…")
+        self._update_scene_send_button()
 
     def shutdown_realtime(self) -> None:
         if self._realtime is not None:
             self._realtime.close()
             self._realtime.deleteLater()
             self._realtime = None
+        self._token = None
         self._reset_call_state()
         self.call_status.setText("")
+        self._update_scene_send_button()
 
     def _on_realtime_ready(self, _payload: dict) -> None:
         if self._call_state == "idle":
             self.call_status.setText("Realtime connected")
         self._update_call_button()
+        self._update_scene_send_button()
 
     def _on_realtime_connection(self, connected: bool) -> None:
         if not connected and self._call_state in ("active", "outgoing", "incoming"):
@@ -374,6 +418,7 @@ class HomeScreen(QWidget):
         elif not connected:
             self.call_status.setText("Realtime offline — retrying…")
         self._update_call_button()
+        self._update_scene_send_button()
 
     def _on_realtime_error(self, code: str, message: str) -> None:
         labels = {
@@ -469,6 +514,7 @@ class HomeScreen(QWidget):
         self.call_button.setText("End call")
         self.peer_edit.setEnabled(False)
         self._update_call_button()
+        self._update_scene_send_button()
 
     def _on_call_rejected(self, _payload: dict) -> None:
         self._reset_call_state("Call declined")
@@ -492,6 +538,11 @@ class HomeScreen(QWidget):
         msg = Message(msg_type, content, mine=False)
         self.messages_area.add_message(msg)
         self._show_messages()
+        if msg_type == "txt":
+            try:
+                Speaker.say(msg)
+            except Exception:
+                pass
 
     def _reset_call_state(self, status: str | None = None) -> None:
         self._call_state = "idle"
@@ -500,6 +551,7 @@ class HomeScreen(QWidget):
         self.call_button.setText("Connect")
         self.peer_edit.setEnabled(True)
         self._update_call_button()
+        self._update_scene_send_button()
         if status is not None:
             self.call_status.setText(status)
 
@@ -520,6 +572,7 @@ class HomeScreen(QWidget):
         worker.sentence_ready.connect(self._on_sentence_ready)
         worker.gesture_detected.connect(self._on_gesture)
         worker.gesture_recorded.connect(self._on_gesture_recorded)
+        worker.gesture_record_failed.connect(self._on_gesture_record_failed)
         worker.record_progress.connect(self._on_record_progress)
         worker.fps_changed.connect(self._on_fps)
         worker.stopped.connect(self._on_camera_stopped)
@@ -556,11 +609,11 @@ class HomeScreen(QWidget):
 
     def _on_sentence_changed(self, text: str) -> None:
         self.composing_label.setText(text if text else "—")
-        self._last_sentence = text.strip() if text else ""
-        if hasattr(self, "gen_scene_btn"):
-            self.gen_scene_btn.setEnabled(bool(self._last_sentence))
+        self._composing = bool(text.strip())
+        self._update_generate_button()
 
     def _on_sentence_ready(self, text: str) -> None:
+        self._composing = False
         if text:
             self._last_sentence = text.strip()
             msg = Message("txt", text)
@@ -570,12 +623,9 @@ class HomeScreen(QWidget):
                 self._realtime.send_text(self._call_id, text)
 
             self.camera_hud.setText("Sentence sent to My messages")
-            if hasattr(self, "gen_scene_btn"):
-                self.gen_scene_btn.setEnabled(bool(self._last_sentence))
         else:
             self._last_sentence = ""
-            if hasattr(self, "gen_scene_btn"):
-                self.gen_scene_btn.setEnabled(False)
+        self._update_generate_button()
         self.composing_label.setText("—")
 
     def _on_gesture(self, word: str, confidence: float) -> None:
@@ -590,6 +640,12 @@ class HomeScreen(QWidget):
         self._recording_word = None
         self._teach.on_recorded(word, total)
 
+    def _on_gesture_record_failed(self, word: str) -> None:
+        self._recording_word = None
+        self._teach.status.setText(
+            f"Could not save “{word}” — keep your hand in view and try again."
+        )
+
     def _on_record_progress(self, remaining_ms: int) -> None:
         if self._recording_word:
             self._teach.on_record_progress(self._recording_word, remaining_ms)
@@ -601,61 +657,105 @@ class HomeScreen(QWidget):
         if self._camera_worker is not None:
             self._camera_worker.request_clear()
         self.composing_label.setText("—")
+        self._composing = False
         self._last_sentence = ""
-        if hasattr(self, "gen_scene_btn"):
-            self.gen_scene_btn.setEnabled(False)
+        self._update_generate_button()
 
     def _ensure_scene_worker(self):
-        if self._scene_worker is not None:
-            if not self._scene_worker.isRunning():
-                self._scene_worker.start()
-            return self._scene_worker
-        self._scene_worker = SceneWorker(self)
-        self._scene_worker.scene_ready.connect(self._on_scene_ready)
-        self._scene_worker.scene_failed.connect(self._on_scene_failed)
-        self._scene_worker.status_changed.connect(self.camera_hud.setText)
-        self._scene_worker.model_loaded.connect(self._on_scene_model_loaded)
+        if self._scene_worker is None:
+            self._scene_worker = SceneWorker(self)
+            self._scene_worker.scene_ready.connect(self._on_scene_ready)
+            self._scene_worker.scene_failed.connect(self._on_scene_failed)
+            self._scene_worker.status_changed.connect(self.scene_status.setText)
         if not self._scene_worker.isRunning():
             self._scene_worker.start()
         return self._scene_worker
 
+    def _update_generate_button(self) -> None:
+        if not hasattr(self, "gen_scene_btn"):
+            return
+        self.gen_scene_btn.setEnabled(
+            bool(self._last_sentence.strip())
+            and not self._composing
+            and not self._scene_generating
+        )
+
     def _generate_scene(self):
+        if self._scene_generating:
+            return
         sentence = self._last_sentence.strip()
         if not sentence:
             return
-        if hasattr(self, "gen_scene_btn"):
-            self.gen_scene_btn.setEnabled(False)
-        self.camera_hud.setText("Generating scene...")
+        if not self._token:
+            self.scene_status.setText("Sign in again to generate scenes")
+            return
+        self._scene_generating = True
+        self._update_generate_button()
+        self.scene_status.setText("Generating scene...")
         worker = self._ensure_scene_worker()
-        worker.generate(sentence)
+        worker.generate(sentence, self._token)
 
     def _on_scene_ready(self, sentence: str, data_url: str):
+        self._scene_generating = False
+        self._last_scene = data_url
+        self._scene_sent = False
         msg = Message("scene", data_url, mine=True)
         self.messages_area.add_message(msg)
         self._show_messages()
-        if self._call_state == "active" and self._call_id and self._realtime is not None:
-            try:
-                self._realtime.send_scene(self._call_id, data_url)
-            except Exception:
-                pass
-        self.camera_hud.setText("Scene ready")
-        if hasattr(self, "gen_scene_btn"):
-            self.gen_scene_btn.setEnabled(bool(self._last_sentence.strip()))
+        self.scene_status.setText("Scene ready — click Send")
+        self._update_scene_send_button()
+        self._update_generate_button()
 
     def _on_scene_failed(self, sentence: str, error: str):
-        self.camera_hud.setText("Scene generation failed")
-        if hasattr(self, "gen_scene_btn"):
-            self.gen_scene_btn.setEnabled(bool(self._last_sentence.strip()))
+        self._scene_generating = False
+        self.scene_status.setText(f"Scene generation failed: {error}")
+        self._update_scene_send_button()
+        self._update_generate_button()
 
-    def _on_scene_model_loaded(self, loaded: bool, device: str):
-        if loaded:
-            self.camera_hud.setText(f"Scene model ready ({device})")
+    def _send_scene(self) -> None:
+        if not self._last_scene:
+            self.scene_status.setText("Generate a scene first")
+            return
+        if (
+            self._call_state != "active"
+            or not self._call_id
+            or self._realtime is None
+        ):
+            self.scene_status.setText("Start a call before sending scenes")
+            self._update_scene_send_button()
+            return
+
+        if self._realtime.send_scene(self._call_id, self._last_scene):
+            self._scene_sent = True
+            self.scene_status.setText("Scene sent")
         else:
-            self.camera_hud.setText("Scene model not loaded")
+            self.scene_status.setText("Scene send failed — realtime offline")
+        self._update_scene_send_button()
+
+    def _update_scene_send_button(self) -> None:
+        if not hasattr(self, "messages_area"):
+            return
+        active = (
+            self._call_state == "active"
+            and bool(self._call_id)
+            and self._realtime is not None
+        )
+        enabled = bool(self._last_scene) and active and not self._scene_sent
+        self.messages_area.set_scene_send_state(
+            enabled, "Sent" if self._scene_sent else "Send"
+        )
 
     def _on_camera_stopped(self) -> None:
+        worker = self.sender()
+        if worker is not None and worker is not self._camera_worker:
+            return
         worker = self._camera_worker
         self._camera_worker = None
+        self._reset_camera_ui()
+        if worker is not None:
+            worker.deleteLater()
+
+    def _reset_camera_ui(self) -> None:
         self._last_frame = None
         self.camera_button.setText("Open Camera")
         self.camera_button.setEnabled(True)
@@ -664,19 +764,25 @@ class HomeScreen(QWidget):
         self.fps_label.setText("")
         self.gesture_label.setText("")
         self.composing_label.setText("—")
+        self._composing = False
+        self._scene_generating = False
         self._last_sentence = ""
-        if hasattr(self, "gen_scene_btn"):
-            self.gen_scene_btn.setEnabled(False)
+        self._update_generate_button()
         self.camera_video.clear()
         self.camera_video.setText("Camera feed will appear here")
-        if worker is not None:
-            worker.deleteLater()
 
     def shutdown_camera(self) -> None:
-        if self._camera_worker is not None:
-            self._camera_worker.stop()
-            self._camera_worker.wait(3000)
-            self._camera_worker = None
+        worker = self._camera_worker
+        self._camera_worker = None
+        if worker is not None:
+            try:
+                worker.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            worker.stop()
+            worker.wait(3000)
+            worker.deleteLater()
+        self._reset_camera_ui()
         if self._scene_worker is not None:
             try:
                 self._scene_worker.stop()

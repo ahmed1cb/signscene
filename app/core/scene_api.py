@@ -1,33 +1,40 @@
-import os
-
 import requests
 
-API_BASE = (
-    os.environ.get("SIGNSCENE_API_BASE")
-    or os.environ.get("SIGNSCENE_BACKEND_URL")
-    or "http://127.0.0.1:8080"
-)
+from core.config import HTTP_BASE as API_BASE
 
 
-def process_sentence(sentence: str, timeout: int = 3):
+class SceneAPIError(Exception):
+    pass
+
+
+def generate_scene(sentence: str, token: str, timeout: int = 60) -> dict:
     if not sentence:
-        return None
+        raise SceneAPIError("sentence is required")
+    if not token:
+        raise SceneAPIError("authentication is required")
+
     try:
         resp = requests.post(
-            f"{API_BASE}/scene/process",
+            f"{API_BASE}/scene/generate",
             json={"sentence": sentence},
+            headers={"Authorization": f"Bearer {token}"},
             timeout=timeout,
         )
-        if resp.status_code != 200:
-            return None
+    except requests.RequestException as exc:
+        raise SceneAPIError(str(exc)) from exc
+
+    try:
         data = resp.json()
-        print(data)
-        if not data.get("success"):
-            return None
-        return {
-            "prompt": data.get("prompt", ""),
-            "negative_prompt": data.get("negative_prompt", ""),
-            "defaults": data.get("defaults") or {},
-        }
-    except Exception:
-        return None
+    except ValueError:
+        data = {}
+
+    if resp.status_code >= 400 or not data.get("success"):
+        raise SceneAPIError(
+            data.get("error") or resp.reason or "scene generation failed"
+        )
+
+    scene = data.get("scene")
+    if not isinstance(scene, str) or not scene.startswith("data:image/"):
+        raise SceneAPIError("backend returned an invalid scene")
+
+    return data

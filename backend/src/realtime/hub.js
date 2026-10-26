@@ -50,6 +50,11 @@ export class RealtimeHub {
     clearInterval(this._heartbeat);
     for (const call of this._calls.values()) {
       if (call.ringTimer) clearTimeout(call.ringTimer);
+      this._repo
+        .markCallEnded(call.id, 'ended', 'server_shutdown')
+        .catch((error) => {
+          this._logger.error?.('shutdown call persistence failed:', error);
+        });
     }
     for (const session of this._sessions.values()) {
       if (session.authTimer) clearTimeout(session.authTimer);

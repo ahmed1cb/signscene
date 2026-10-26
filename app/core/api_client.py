@@ -2,11 +2,11 @@
 import requests
 
 from core import session
+from core.config import HTTP_BASE as BASE_URL
+
 
 class AuthError(Exception):
     pass
-
-BASE_URL = "http://127.0.0.1:8080"
 
 
 def _error_message(resp) -> str:

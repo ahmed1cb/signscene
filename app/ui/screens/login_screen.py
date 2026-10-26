@@ -1,4 +1,5 @@
 from core import api_client
+from core.tasks import run_async
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
@@ -50,6 +51,7 @@ class LoginScreen(QWidget):
         super().__init__(parent)
         self._on_login_success = on_login_success
         self._on_go_register = on_go_register
+        self._busy = False
         self._build_ui()
         self.reset()
 
@@ -124,6 +126,8 @@ class LoginScreen(QWidget):
         root.addStretch(1)
 
     def _try_login(self) -> None:
+        if self._busy:
+            return
         self.clear_messages()
         com_id = self.com_id_edit.text().strip()
         password = self.password.text()
@@ -132,15 +136,25 @@ class LoginScreen(QWidget):
             self._show_error("Please fill in all fields.")
             return
 
-        try:
-            user = api_client.login(com_id, password)
-        except api_client.AuthError:
-            self._show_error(
-                "Something Went Wrong, Please Check the connection and try again"
-            )
-            return
+        self._set_busy(True)
+        run_async(
+            lambda: api_client.login(com_id, password),
+            on_success=self._on_login_result,
+            on_error=self._on_login_error,
+        )
 
+    def _on_login_result(self, user: dict) -> None:
+        self._set_busy(False)
         self._on_login_success(user)
+
+    def _on_login_error(self, message: str) -> None:
+        self._set_busy(False)
+        self._show_error(message or "Could not sign in. Please try again.")
+
+    def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        self.login_button.setEnabled(not busy)
+        self.login_button.setText("Signing in…" if busy else "Sign in")
 
     def _show_error(self, message: str) -> None:
         self.error_label.setText(message)
@@ -153,8 +167,9 @@ class LoginScreen(QWidget):
         self.info_label.setText("")
 
     def reset(self) -> None:
-        self.com_id_edit.setText("ALICE-4821")
-        self.password.edit.setText("123456")
+        self.com_id_edit.clear()
+        self.password.edit.clear()
+        self._set_busy(False)
         self.clear_messages()
 
     def show_info(self, text: str) -> None:
