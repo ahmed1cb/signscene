@@ -1,4 +1,4 @@
-USE signscene;
+USE cwb;
 
 CREATE TABLE IF NOT EXISTS calls (
   id           CHAR(36) PRIMARY KEY,

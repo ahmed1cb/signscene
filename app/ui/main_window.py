@@ -1,9 +1,9 @@
+from core import api_client, session
+from core.tasks import run_async
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QCloseEvent, QResizeEvent
 from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
-from core import api_client, session
-from core.tasks import run_async
 from ui.screens.home_screen import HomeScreen
 from ui.screens.login_screen import LoginScreen
 from ui.screens.register_screen import RegisterScreen
@@ -13,9 +13,7 @@ RESIZE_MARGIN = 6
 
 
 class _ResizeHandle(QWidget):
-    def __init__(
-        self, edges: Qt.Edge, cursor: Qt.CursorShape, parent: QWidget
-    ) -> None:
+    def __init__(self, edges: Qt.Edge, cursor: Qt.CursorShape, parent: QWidget) -> None:
         super().__init__(parent)
         self._edges = edges
         self.setObjectName("ResizeHandle")
@@ -34,10 +32,8 @@ class _ResizeHandle(QWidget):
 class MainWindow(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowFlags(
-            self.windowFlags() | Qt.WindowType.FramelessWindowHint
-        )
-        self.setWindowTitle("SignScene")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
+        self.setWindowTitle("CWB")
         self.setMinimumSize(1100, 720)
 
         screen = Qt.CursorShape
@@ -73,25 +69,15 @@ class MainWindow(QWidget):
             self._make_handle(edge.BottomEdge, screen.SizeVerCursor),
             self._make_handle(edge.LeftEdge, screen.SizeHorCursor),
             self._make_handle(edge.RightEdge, screen.SizeHorCursor),
-            self._make_handle(
-                edge.TopEdge | edge.LeftEdge, screen.SizeFDiagCursor
-            ),
-            self._make_handle(
-                edge.TopEdge | edge.RightEdge, screen.SizeBDiagCursor
-            ),
-            self._make_handle(
-                edge.BottomEdge | edge.LeftEdge, screen.SizeBDiagCursor
-            ),
-            self._make_handle(
-                edge.BottomEdge | edge.RightEdge, screen.SizeFDiagCursor
-            ),
+            self._make_handle(edge.TopEdge | edge.LeftEdge, screen.SizeFDiagCursor),
+            self._make_handle(edge.TopEdge | edge.RightEdge, screen.SizeBDiagCursor),
+            self._make_handle(edge.BottomEdge | edge.LeftEdge, screen.SizeBDiagCursor),
+            self._make_handle(edge.BottomEdge | edge.RightEdge, screen.SizeFDiagCursor),
         ]
         self._layout_handles()
         self._update_handle_visibility()
 
-    def _make_handle(
-        self, edges: Qt.Edge, cursor: Qt.CursorShape
-    ) -> _ResizeHandle:
+    def _make_handle(self, edges: Qt.Edge, cursor: Qt.CursorShape) -> _ResizeHandle:
         handle = _ResizeHandle(edges, cursor, self)
         handle.raise_()
         return handle
@@ -103,19 +89,13 @@ class MainWindow(QWidget):
         inner_height = max(0, height - 2 * margin)
 
         self._handles[0].setGeometry(margin, 0, inner_width, margin)
-        self._handles[1].setGeometry(
-            margin, height - margin, inner_width, margin
-        )
+        self._handles[1].setGeometry(margin, height - margin, inner_width, margin)
         self._handles[2].setGeometry(0, margin, margin, inner_height)
-        self._handles[3].setGeometry(
-            width - margin, margin, margin, inner_height
-        )
+        self._handles[3].setGeometry(width - margin, margin, margin, inner_height)
         self._handles[4].setGeometry(0, 0, margin, margin)
         self._handles[5].setGeometry(width - margin, 0, margin, margin)
         self._handles[6].setGeometry(0, height - margin, margin, margin)
-        self._handles[7].setGeometry(
-            width - margin, height - margin, margin, margin
-        )
+        self._handles[7].setGeometry(width - margin, height - margin, margin, margin)
 
     def _update_handle_visibility(self) -> None:
         visible = not (self.isMaximized() or self.isFullScreen())
@@ -129,10 +109,7 @@ class MainWindow(QWidget):
 
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
-        if (
-            event.type() == QEvent.Type.WindowStateChange
-            and hasattr(self, "_handles")
-        ):
+        if event.type() == QEvent.Type.WindowStateChange and hasattr(self, "_handles"):
             self.titlebar.sync_maximize()
             self._update_handle_visibility()
 

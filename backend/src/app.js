@@ -68,7 +68,7 @@ const hub = new RealtimeHub({
 });
 
 server.listen(PORT, () => {
-  console.log(`SignScene backend listening on :${PORT}`);
+  console.log(`CWB backend listening on :${PORT}`);
 });
 
 function shutdown() {

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+
 class _PasswordLineEdit(QWidget):
     def __init__(self, placeholder: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -71,7 +72,7 @@ class LoginScreen(QWidget):
         title.setObjectName("Title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        subtitle = QLabel("Sign in to continue to SignScene")
+        subtitle = QLabel("Sign in to continue to CWB")
         subtitle.setObjectName("Subtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

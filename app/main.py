@@ -12,7 +12,7 @@ BASE = Path(__file__).parent
 def main() -> int:
     app = QApplication(sys.argv)
     app.setStyleSheet(styles.APP_STYLESHEET)
-    app.setApplicationName("SignScene")
+    app.setApplicationName("Communication Without Barriers")
     app.setWindowIcon(QIcon(str(BASE / "assets/images/icon.svg")))
 
     window = MainWindow()

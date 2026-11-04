@@ -42,7 +42,7 @@ class TitleBar(QFrame):
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-        name = QLabel("SignScene")
+        name = QLabel("Communication without Barriers")
         name.setObjectName("Brand")
         name.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
@@ -50,9 +50,7 @@ class TitleBar(QFrame):
         self.maximize_button = _WindowButton("□", "Maximize")
         self.close_button = _WindowButton("×", "Close", "WindowCloseButton")
 
-        self.minimize_button.clicked.connect(
-            lambda: self.window().showMinimized()
-        )
+        self.minimize_button.clicked.connect(lambda: self.window().showMinimized())
         self.maximize_button.clicked.connect(self._toggle_maximize)
         self.close_button.clicked.connect(lambda: self.window().close())
 

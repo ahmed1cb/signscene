@@ -7,6 +7,7 @@ from core.speaker import Speaker
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -140,6 +141,8 @@ class ScenePreview(QLabel):
         super().__init__(parent)
         self.setObjectName("ScenePreview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Double-click to enlarge")
         # Ignored: the pixmap size must never dictate the widget size.
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.setScaledContents(False)
@@ -151,6 +154,28 @@ class ScenePreview(QLabel):
 
     def sizeHint(self) -> QSize:
         return QSize(200, 200)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if self._source.isNull():
+            return
+        super().mouseDoubleClickEvent(event)
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Scene")
+        dialog.resize(1100, 800)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        preview = ScenePreview(self._source, dialog)
+        close = QPushButton("Close")
+        close.setObjectName("GhostButton")
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(dialog.accept)
+
+        layout.addWidget(preview, stretch=1)
+        layout.addWidget(close, alignment=Qt.AlignmentFlag.AlignRight)
+        dialog.exec()
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)

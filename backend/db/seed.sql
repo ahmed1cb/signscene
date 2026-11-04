@@ -1,7 +1,7 @@
--- Seed data for signscene (MySQL)
+-- Seed data for CWB (MySQL)
 -- All demo users have password: 123456
 
-USE signscene;
+USE cwb;
 
 INSERT INTO users (full_name, com_id, password_hash) VALUES
   ('Alice Hassan',  'ALICE-4821', '$2b$10$7WymsNmPAe0z9PW7Q24Qq.cmihMxR6cdnLn9Xt80q18kJOs2HYBHC'),

@@ -619,7 +619,11 @@ class HomeScreen(QWidget):
             msg = Message("txt", text)
             self.messages_area.add_message(msg)
 
-            if self._call_state == "active" and self._call_id and self._realtime is not None:
+            if (
+                self._call_state == "active"
+                and self._call_id
+                and self._realtime is not None
+            ):
                 self._realtime.send_text(self._call_id, text)
 
             self.camera_hud.setText("Sentence sent to My messages")
@@ -716,11 +720,7 @@ class HomeScreen(QWidget):
         if not self._last_scene:
             self.scene_status.setText("Generate a scene first")
             return
-        if (
-            self._call_state != "active"
-            or not self._call_id
-            or self._realtime is None
-        ):
+        if self._call_state != "active" or not self._call_id or self._realtime is None:
             self.scene_status.setText("Start a call before sending scenes")
             self._update_scene_send_button()
             return
